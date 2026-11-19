@@ -1,0 +1,2 @@
+-dontwarn kotlinx.**
+-keep class com.ludus.gym.data.remote.dto.** { *; }
