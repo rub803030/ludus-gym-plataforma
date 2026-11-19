@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Ludus GYM</string>
+    <string name="brand_name">LUDUS GYM</string>
+    <string name="login_title">Bienvenido de nuevo</string>
+    <string name="login_subtitle">Tu entrenamiento empieza aquí</string>
+    <string name="login_email">Correo electrónico</string>
+    <string name="login_password">Contraseña</string>
+    <string name="login_action">Entrar al gimnasio</string>
+    <string name="login_demo">Demo: socio@ludusgym.com · Ludus2026!</string>
+    <string name="login_error">No pudimos iniciar sesión. Revisa tus datos e inténtalo de nuevo.</string>
+    <string name="nav_home">Inicio</string>
+    <string name="nav_qr">QR</string>
+    <string name="nav_routine">Rutina</string>
+    <string name="nav_nutrition">Nutrición</string>
+    <string name="nav_bookings">Reservas</string>
+    <string name="membership_active">MEMBRESÍA ACTIVA</string>
+    <string name="membership_pending">PAGO PENDIENTE</string>
+    <string name="qr_offline_banner">Credencial offline válida 10 min</string>
+    <string name="qr_expired">Código expirado · generando uno nuevo</string>
+    <string name="workout_log_action">Registrar serie</string>
+    <string name="common_retry">Reintentar</string>
+    <string name="common_cancel">Cancelar</string>
+    <string name="common_confirm">Confirmar</string>
+    <string name="common_offline">Sin conexión · trabajando en modo offline</string>
+</resources>
