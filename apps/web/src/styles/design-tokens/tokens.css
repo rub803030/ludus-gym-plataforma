@@ -1,0 +1,24 @@
+:root {
+  --color-canvas: #0d0f12;
+  --color-surface: #16191e;
+  --color-surface-raised: #1f242d;
+  --color-ink: #e2e2e6;
+  --color-muted: #94a3b8;
+  --color-volt: #ccff00;
+  --color-ignition: #ff5500;
+  --color-emerald: #10b981;
+  --color-hairline: rgba(255, 255, 255, 0.08);
+  --font-display: 'Montserrat';
+  --font-body: 'Inter';
+  --ease-kinetic: cubic-bezier(0.22, 1, 0.36, 1);
+  --space-unit: 8px;
+}
+
+[data-theme='light'] {
+  --color-canvas: #f6f5f2;
+  --color-surface: #eceae4;
+  --color-ink: #181816;
+  --color-muted: #5e5d58;
+  --color-hairline: rgba(24, 24, 22, 0.14);
+  --color-volt: #b8e600;
+}
