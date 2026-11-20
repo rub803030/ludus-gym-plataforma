@@ -1,3 +1,4 @@
+import { apiUrl } from '@/config/env'
 import { asBoolean, asNumber, asRecord, asString, coalesce, normalizeAccessEvent, normalizeCashSession, normalizeMember, normalizeNutrition, normalizeOccupancy, normalizePaginated, normalizePayment, normalizePlan, normalizePrincipal, normalizeRoutine, normalizeStaff, normalizeSummary, normalizeAudit, pick } from '@/lib/normalize'
 import type {
   AccessEvent,
@@ -19,7 +20,6 @@ import type {
   MemberView,
 } from '@/types'
 
-const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000').replace(/\/$/, '')
 export const SESSION_EXPIRED_EVENT = 'ludus:session-expired'
 
 /* ------------------------------------------------------------------ *
@@ -211,7 +211,7 @@ async function performRefresh(): Promise<boolean> {
   if (refreshInFlight) return refreshInFlight
   refreshInFlight = (async () => {
     try {
-      const response = await fetch(`${API_URL}/api/auth/refresh`, {
+      const response = await fetch(apiUrl('/api/auth/refresh'), {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': readCsrfToken() },
@@ -254,7 +254,7 @@ export async function apiFetch<T>(path: string, init: ApiFetchInit = {}): Promis
 
   let response: Response
   try {
-    response = await fetch(`${API_URL}${path}`, {
+    response = await fetch(apiUrl(path), {
       ...requestInit,
       headers,
       credentials: 'include',
