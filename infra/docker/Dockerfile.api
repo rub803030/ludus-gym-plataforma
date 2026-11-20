@@ -1,4 +1,7 @@
-FROM node:20-alpine AS base
+FROM node:20-slim AS base
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends openssl ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
 RUN corepack enable
 WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
@@ -6,6 +9,8 @@ COPY apps/api/package.json apps/api/
 COPY packages/shared/package.json packages/shared/
 RUN pnpm install --frozen-lockfile
 COPY . .
-RUN pnpm --filter @ludus/shared build && pnpm --filter @ludus/api build
+RUN pnpm --filter @ludus/shared build
+RUN pnpm --filter @ludus/api db:generate
+RUN pnpm --filter @ludus/api build
 EXPOSE 4000
 CMD ["node", "apps/api/dist/main.js"]

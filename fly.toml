@@ -1,5 +1,5 @@
 # Ajusta `app` si el nombre ya está ocupado globalmente en Fly.io.
-app = 'ludus-gym-api'
+app = 'ludus-gym-plataforma-api'
 primary_region = 'iad'
 
 [build]

@@ -26,6 +26,12 @@ La web se publica en una URL HTTPS gratuita de Vercel, por ejemplo:
 https://ludus-gym-plataforma.vercel.app
 ```
 
+La API correspondiente está en:
+
+```text
+https://ludus-gym-plataforma-api.fly.dev
+```
+
 El navegador siempre llama a rutas relativas `/api/*`. Next.js las redirige al
 upstream configurado en `API_UPSTREAM_URL` (la URL de Fly.io). Esto mantiene
 las cookies de sesión en el mismo sitio y evita problemas de `SameSite=Strict`
@@ -34,10 +40,10 @@ entre dominios distintos.
 | Variable | Dónde se configura | Valor en producción |
 | --- | --- | --- |
 | `NEXT_PUBLIC_API_URL` | Vercel | vacío (mismo origen) |
-| `API_UPSTREAM_URL` | Vercel | `https://<app>.fly.dev` |
+| `API_UPSTREAM_URL` | Vercel | `https://ludus-gym-plataforma-api.fly.dev` |
 | `CORS_ORIGIN` | Fly.io | `https://ludus-gym-plataforma.vercel.app` |
-| `REDIS_URL` | Fly.io | Redis compartido (nunca localhost) |
-| `S3_*` | Fly.io | Proyecto R2/S3 real (nunca `minioadmin`) |
+| `REDIS_URL` | Fly.io | vacío con una sola instancia; Redis compartido al escalar |
+| `S3_*` | Fly.io | Proveedor S3/R2 real configurado en secretos |
 
 Si más adelante compras un dominio propio, solo cambia `CORS_ORIGIN` en Fly.io
 y añade el dominio en Vercel. El código no se modifica.
@@ -45,7 +51,7 @@ y añade el dominio en Vercel. El código no se modifica.
 ## Seguridad aplicada
 
 - La API rechaza el arranque si `CORS_ORIGIN` no es HTTPS o es localhost.
-- La API exige `DIRECT_URL`, Redis compartido y credenciales S3 reales en producción.
+- La API exige `DIRECT_URL` y `CORS_ORIGIN` HTTPS en producción. Sin `REDIS_URL`, el rate limit usa el store local: ello es válido solo con una instancia de la API.
 - `FIELD_ENCRYPTION_KEY` debe decodificar exactamente 32 bytes.
 - La web añade HSTS, CSP, `X-Frame-Options: DENY` y `Referrer-Policy: no-referrer` en producción.
 - Los secretos nunca se versionan: `.env.local`, keystores y builds están ignorados.

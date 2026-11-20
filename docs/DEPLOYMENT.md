@@ -4,11 +4,11 @@
 
 | Componente | Plataforma recomendada | Notas |
 | --- | --- | --- |
-| Web | Vercel | URL HTTPS gratuita `*.vercel.app`; root directory `apps/web` |
-| API | Fly.io | Dockerfile `infra/docker/Dockerfile.api`, config en `fly.toml` |
-| Base de datos | Supabase (ya configurada) | Aplicar migraciones con `pnpm db:migrate` |
-| Redis | Upstash | Rate limit distribuido, revocación, idempotencia y Socket.io |
-| Almacenamiento | Cloudflare R2 | Presigned URLs, reemplaza MinIO local |
+| Web | Vercel | https://ludus-gym-plataforma.vercel.app (gratuita, root directory `apps/web`) |
+| API | Fly.io | https://ludus-gym-plataforma-api.fly.dev (Dockerfile `infra/docker/Dockerfile.api`, config en `fly.toml`) |
+| Base de datos | Supabase (ya configurada) | Pooler para `DATABASE_URL`; conexión directa para `DIRECT_URL` |
+| Redis | Store local (1 instancia) | Fly trial no permite add-on de pago; añadir Upstash antes de escalar a varias instancias |
+| Almacenamiento | S3/R2 real | Presigned URLs, reemplaza MinIO local |
 | App Android | Google Play | `./gradlew :app:bundleRelease` |
 
 ## Variables de entorno de producción
@@ -23,7 +23,7 @@ Rotar TODOS los secretos de `.env.example`. Nunca reutilizar los valores de desa
 - `DATABASE_URL` / `DIRECT_URL`: cadena de Supabase con contraseña real (usar pooler para `DATABASE_URL` y conexión directa para `DIRECT_URL`).
 - `CORS_ORIGIN`: dominio **HTTPS** exacto de la web (URL de Vercel). La API rechaza el arranque si es `localhost` o no usa HTTPS.
 - `NODE_ENV=production`.
-- `REDIS_URL`: obligatorio y compartido en producción para el rate limit.
+- `REDIS_URL`: se deja vacío con una sola instancia de Fly (trial sin tarjeta). Para varias instancias, configurar Redis compartido de Upstash.
 - `NEXT_PUBLIC_API_URL`: se deja vacío en Vercel (mismo origen).
 - `API_UPSTREAM_URL`: URL HTTPS de la API en Fly.io, configurada solo en Vercel.
 
@@ -43,7 +43,7 @@ Rotar TODOS los secretos de `.env.example`. Nunca reutilizar los valores de desa
 
    Para rotar la contraseña de un OWNER existente añade `--force`.
 4. Desplegar API y Web.
-5. Verificar `/health` y el flujo de login web (el worker debe devolver `csrfToken`).
+5. Verificar `/health` en Fly y el login web en Vercel (la respuesta devuelve `csrfToken` y 4 cookies de sesión).
 6. Generar el AAB firmado y subir a Play Console (ver `docs/runbooks/android-release.md`).
 
 ## Checklist de seguridad antes de vender

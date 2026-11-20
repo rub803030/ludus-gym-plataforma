@@ -47,6 +47,8 @@ SameSite=Strict en producción y los campos médicos se cifran con AES-256-GCM.
 
 ## Verificación y despliegue
 
+Producción: https://ludus-gym-plataforma.vercel.app
+
 ```bash
 python scripts/test-api-flows.py     # flujos extremo a extremo
 python scripts/verify-all.py         # typecheck + tests + builds
