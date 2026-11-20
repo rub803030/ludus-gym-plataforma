@@ -15,6 +15,14 @@ class LoginUseCase(private val auth: AuthRepository) {
     }
 }
 
+class VerifyEmailUseCase(private val auth: AuthRepository) {
+    suspend operator fun invoke(token: String): Result<String> = auth.verifyEmail(token)
+}
+
+class ResendVerificationUseCase(private val auth: AuthRepository) {
+    suspend operator fun invoke(email: String): Result<Unit> = auth.resendVerification(email)
+}
+
 class LogoutUseCase(private val auth: AuthRepository) {
     suspend operator fun invoke() = auth.logout()
 }

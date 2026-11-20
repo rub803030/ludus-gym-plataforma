@@ -13,7 +13,10 @@ import com.ludus.gym.data.remote.dto.PaymentDto
 import com.ludus.gym.data.remote.dto.QrTokenDto
 import com.ludus.gym.data.remote.dto.RefreshRequestDto
 import com.ludus.gym.data.remote.dto.RefreshResponseDto
+import com.ludus.gym.data.remote.dto.ResendVerificationRequestDto
 import com.ludus.gym.data.remote.dto.RoutineDto
+import com.ludus.gym.data.remote.dto.VerifyEmailRequestDto
+import com.ludus.gym.data.remote.dto.VerifyEmailResponseDto
 import com.ludus.gym.data.remote.dto.WorkoutLogRequestDto
 import com.ludus.gym.data.remote.dto.WorkoutLogResponseDto
 import retrofit2.http.Body
@@ -25,6 +28,12 @@ import retrofit2.http.Path
 interface ApiService {
     @POST("api/auth/mobile/login")
     suspend fun login(@Body request: LoginRequestDto): LoginResponseDto
+
+    @POST("api/auth/verify-email")
+    suspend fun verifyEmail(@Body request: VerifyEmailRequestDto): VerifyEmailResponseDto
+
+    @POST("api/auth/verify-email/resend")
+    suspend fun resendVerification(@Body request: ResendVerificationRequestDto): Map<String, Any?>
 
     @GET("api/auth/me")
     suspend fun me(): MeDto

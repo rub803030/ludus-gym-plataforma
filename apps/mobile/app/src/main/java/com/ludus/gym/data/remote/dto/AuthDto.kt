@@ -50,7 +50,29 @@ data class MeDto(
 }
 
 data class ApiErrorDto(
+    @Json(name = "code") val code: String? = null,
     @Json(name = "message") val message: String? = null,
     @Json(name = "error") val error: String? = null,
+    @Json(name = "details") val details: Map<String, Any?>? = null,
     @Json(name = "statusCode") val statusCode: Int? = null,
+)
+
+data class ApiErrorEnvelopeDto(
+    @Json(name = "error") val error: ApiErrorDto? = null,
+)
+
+data class VerifyEmailRequestDto(
+    @Json(name = "token") val token: String,
+)
+
+data class ResendVerificationRequestDto(
+    @Json(name = "email") val email: String,
+    @Json(name = "platform") val platform: String = "mobile",
+)
+
+data class VerifyEmailResponseDto(
+    @Json(name = "ok") val ok: Boolean = false,
+    @Json(name = "email") val email: String? = null,
+    @Json(name = "platform") val platform: String? = null,
+    @Json(name = "name") val name: String? = null,
 )
