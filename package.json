@@ -13,6 +13,7 @@
     "db:generate": "pnpm --filter @ludus/api db:generate",
     "db:migrate": "pnpm --filter @ludus/api db:migrate",
     "owner:create": "node scripts/create-owner.mjs",
+    "commit": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/git-commit.ps1",
     "verify:flows": "python scripts/test-api-flows.py",
     "verify:all": "python scripts/verify-all.py"
   },
