@@ -1,10 +1,9 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { ConsoleShell } from './ConsoleShell'
+import { apiUrl } from '@/config/env'
 import { asRecord, asString, coalesce, normalizePrincipal, pick } from '@/lib/normalize'
 import type { Principal } from '@/types'
-
-const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000').replace(/\/$/, '')
 
 export const dynamic = 'force-dynamic'
 
@@ -18,7 +17,7 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
   let unauthorized = false
 
   try {
-    const response = await fetch(`${API_URL}/api/auth/me`, {
+    const response = await fetch(apiUrl('/api/auth/me', 'server'), {
       headers: { cookie: cookieHeader },
       cache: 'no-store',
     })
