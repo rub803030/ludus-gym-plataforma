@@ -13,9 +13,10 @@ Plataforma integral de gestión operativa, financiera y de entrenamiento para **
 
 ## Estado
 
-**Fase 2 — Hardening y preparación comercial completada.** API, consola web y app Android
+**Fase 3 — Publicación HTTPS y verificación de correo completadas.** API, consola web y app Android
 funcionales sobre Supabase, con RLS en 25/25 tablas, CSRF, rate limit distribuido,
-cifrado de campos médicos, AAB firmado y runbooks de operación.
+cifrado de campos médicos, AAB firmado, despliegue público y verificación obligatoria
+de correo para STAFF y SOCIOS mediante Resend.
 
 ## Módulos incluidos
 
@@ -31,7 +32,7 @@ pnpm install
 cp .env.example .env
 docker compose -f infra/docker/compose.yaml up -d
 pnpm --filter @ludus/api db:generate
-pnpm --filter @ludus/api db:migrate
+python scripts/apply-all-migrations.py
 pnpm dev
 ```
 
@@ -44,15 +45,21 @@ La web rechaza credenciales de `MEMBER`. El móvil rechaza credenciales de staff
 El pase QR rota cada 30 s y se firma con HMAC-SHA256. Los cobros son idempotentes.
 Las mutaciones web exigen token CSRF; las sesiones usan cookies Secure + HttpOnly +
 SameSite=Strict en producción y los campos médicos se cifran con AES-256-GCM.
+El acceso exige correo verificado: el enlace es de un solo uso, expira en 30 minutos
+y solo se persiste su hash SHA-256.
 
 ## Verificación y despliegue
 
 Producción: https://ludus-gym-plataforma.vercel.app
 
 ```bash
-python scripts/test-api-flows.py     # flujos extremo a extremo
+python scripts/test-api-flows.py     # flujos extremo a extremo (verifica correos demo)
 python scripts/verify-all.py         # typecheck + tests + builds
 ```
+
+El alta de STAFF o SOCIO envía automáticamente un correo de confirmación. Mientras no se
+confirme, el login responde `403 EMAIL_NOT_VERIFIED`; la web ofrece reenviar el enlace y
+la app permite abrir la web o pegar el código recibido.
 
 - `docs/DEPLOYMENT.md` — arquitectura, variables y checklist de venta.
 - `docs/CONFIGURATION.md` — configuración centralizada y URL pública.

@@ -81,10 +81,10 @@ try {
   const owner = existing
     ? await prisma.staffUser.update({
         where: { id: existing.id },
-        data: { passwordHash, role: 'OWNER', isActive: true, suspendedAt: null, deletedAt: null },
+        data: { passwordHash, role: 'OWNER', isActive: true, suspendedAt: null, deletedAt: null, emailVerified: true, emailVerifiedAt: new Date() },
       })
     : await prisma.staffUser.create({
-        data: { gymId: gym.id, email, passwordHash, fullName: name, role: 'OWNER', isActive: true },
+        data: { gymId: gym.id, email, passwordHash, fullName: name, role: 'OWNER', isActive: true, emailVerified: true, emailVerifiedAt: new Date() },
       })
 
   console.log(`OWNER ${existing ? 'actualizado' : 'creado'}: ${owner.email}`)

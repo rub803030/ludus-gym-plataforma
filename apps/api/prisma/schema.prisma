@@ -89,22 +89,28 @@ model Gym {
 }
 
 model StaffUser {
-  id           String     @id @default(uuid()) @db.Uuid
-  gymId        String     @map("gym_id") @db.Uuid
-  email        String     @db.Citext
-  passwordHash String     @map("password_hash")
-  fullName     String     @map("full_name")
-  role         StaffRole
-  isActive     Boolean    @default(true) @map("is_active")
-  suspendedAt  DateTime?  @map("suspended_at")
-  lastLoginAt  DateTime?  @map("last_login_at")
-  createdAt    DateTime   @default(now()) @map("created_at")
-  updatedAt    DateTime   @updatedAt @map("updated_at")
-  deletedAt    DateTime?  @map("deleted_at")
+  id                     String     @id @default(uuid()) @db.Uuid
+  gymId                  String     @map("gym_id") @db.Uuid
+  email                  String     @db.Citext
+  passwordHash           String     @map("password_hash")
+  fullName               String     @map("full_name")
+  role                   StaffRole
+  isActive               Boolean    @default(true) @map("is_active")
+  suspendedAt            DateTime?  @map("suspended_at")
+  lastLoginAt            DateTime?  @map("last_login_at")
+  emailVerified          Boolean    @default(false) @map("email_verified")
+  emailVerifiedAt        DateTime?  @map("email_verified_at")
+  verificationTokenHash  String?    @map("verification_token_hash")
+  verificationExpiresAt  DateTime?  @map("verification_expires_at")
+  verificationSentAt     DateTime?  @map("verification_sent_at")
+  createdAt              DateTime   @default(now()) @map("created_at")
+  updatedAt              DateTime   @updatedAt @map("updated_at")
+  deletedAt              DateTime?  @map("deleted_at")
 
   gym Gym @relation(fields: [gymId], references: [id])
 
   @@unique([gymId, email])
+  @@unique([verificationTokenHash])
   @@index([gymId, role])
   @@map("staff_users")
 }
@@ -153,6 +159,11 @@ model Member {
   conditionsCipher   Bytes?       @map("conditions_cipher")
   passwordHash       String?      @map("password_hash")
   status             MemberStatus @default(PENDING)
+  emailVerified      Boolean      @default(false) @map("email_verified")
+  emailVerifiedAt    DateTime?    @map("email_verified_at")
+  verificationTokenHash  String?  @map("verification_token_hash")
+  verificationExpiresAt  DateTime? @map("verification_expires_at")
+  verificationSentAt     DateTime? @map("verification_sent_at")
   avatarUrl          String?      @map("avatar_url")
   joinedAt           DateTime     @default(now()) @map("joined_at")
   createdAt          DateTime     @default(now()) @map("created_at")
@@ -170,6 +181,7 @@ model Member {
   @@unique([gymId, code])
   @@unique([gymId, documentNumber])
   @@unique([gymId, email])
+  @@unique([verificationTokenHash])
   @@index([gymId, status])
   @@map("members")
 }

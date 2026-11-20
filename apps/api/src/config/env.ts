@@ -21,6 +21,12 @@ const envSchema = z.object({
   S3_ACCESS_KEY: z.string().default('minioadmin'),
   S3_SECRET_KEY: z.string().default('minioadmin'),
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(120),
+  RESEND_API_KEY: z.string().min(1).default(''),
+  EMAIL_FROM: z.string().min(3).default('Ludus GYM <onboarding@resend.dev>'),
+  // Solo desarrollo: onboarding@resend.dev entrega únicamente al correo dueño de la cuenta.
+  RESEND_TEST_RECIPIENT: z.string().email().optional(),
+  WEB_APP_URL: z.string().url().default('http://localhost:3000'),
+  EMAIL_VERIFICATION_TTL_MINUTES: z.coerce.number().int().positive().default(30),
 }).superRefine((value, ctx) => {
   const encryptionKey = Buffer.from(value.FIELD_ENCRYPTION_KEY.replace(/^base64:/, ''), 'base64')
   if (encryptionKey.length !== 32) {
@@ -37,6 +43,13 @@ const envSchema = z.object({
   }
   if (!value.DIRECT_URL) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['DIRECT_URL'], message: 'DIRECT_URL es obligatorio en producción para migraciones' })
+  }
+  if (!value.RESEND_API_KEY) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['RESEND_API_KEY'], message: 'RESEND_API_KEY es obligatorio en producción' })
+  }
+  const appUrl = new URL(value.WEB_APP_URL)
+  if (appUrl.protocol !== 'https:' || ['localhost', '127.0.0.1', '::1'].includes(appUrl.hostname)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['WEB_APP_URL'], message: 'WEB_APP_URL debe ser HTTPS público en producción' })
   }
 })
 
