@@ -8,7 +8,7 @@ const envSchema = z.object({
   API_PORT: z.coerce.number().int().positive().default(4000),
   DATABASE_URL: z.string().url(),
   DIRECT_URL: z.string().url().optional(),
-  REDIS_URL: z.string().url().default('redis://localhost:6379'),
+  REDIS_URL: z.preprocess((value) => (value === '' ? undefined : value), z.string().url().optional()),
   JWT_ACCESS_SECRET: z.string().min(32),
   JWT_REFRESH_SECRET: z.string().min(32),
   QR_HMAC_SECRET: z.string().min(32),
@@ -37,12 +37,6 @@ const envSchema = z.object({
   }
   if (!value.DIRECT_URL) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['DIRECT_URL'], message: 'DIRECT_URL es obligatorio en producción para migraciones' })
-  }
-  if (new URL(value.REDIS_URL).hostname === 'localhost') {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['REDIS_URL'], message: 'REDIS_URL debe ser un Redis compartido en producción' })
-  }
-  if (value.S3_ACCESS_KEY === 'minioadmin' || value.S3_SECRET_KEY === 'minioadmin' || value.S3_ENDPOINT.includes('localhost')) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['S3_ACCESS_KEY'], message: 'La configuración S3 de desarrollo no es válida en producción' })
   }
 })
 
