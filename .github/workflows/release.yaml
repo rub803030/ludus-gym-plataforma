@@ -55,7 +55,7 @@ jobs:
           LUDUS_RELEASE_STORE_PASSWORD: ${{ secrets.LUDUS_RELEASE_STORE_PASSWORD }}
           LUDUS_RELEASE_KEY_ALIAS: ${{ secrets.LUDUS_RELEASE_KEY_ALIAS }}
           LUDUS_RELEASE_KEY_PASSWORD: ${{ secrets.LUDUS_RELEASE_KEY_PASSWORD }}
-        run: bash ./gradlew :app:bundleRelease --no-daemon
+        run: sed -i 's/\r$//' ./gradlew && bash ./gradlew :app:bundleRelease --no-daemon
       - uses: actions/upload-artifact@v4
         with:
           name: ludus-gym-aab
