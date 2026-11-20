@@ -46,8 +46,41 @@ def check(label, method, path, body=None, token=None, headers=None, expect=200):
 print("== Health ==")
 check("health", "GET", "/health")
 
+print("\n== Verificación de correo ==")
+OWNER_EMAIL = "rubnlira2+owner@gmail.com"
+SOCIO_EMAIL = "rubnlira2+socio@gmail.com"
+status, blocked, _ = call("POST", "/api/auth/web/login", {"email": OWNER_EMAIL, "password": "Owner2026!", "platform": "web"})
+code = blocked.get("error", {}).get("code") if isinstance(blocked, dict) else None
+if status == 403 and code == "EMAIL_NOT_VERIFIED":
+    print("OK  login bloqueado antes de verificar: 403 EMAIL_NOT_VERIFIED")
+else:
+    FAILURES.append("login bloqueado antes de verificar")
+    print(f"FAIL login bloqueado antes de verificar: {status} {code}")
+
+
+def verify_demo_account(email, platform):
+    status, sent, _ = call("POST", "/api/auth/verify-email/resend", {"email": email, "platform": platform})
+    token = sent.get("devToken") if isinstance(sent, dict) else None
+    if status != 200 or not token:
+        FAILURES.append(f"reenvío de verificación ({email})")
+        print(f"FAIL reenvío de verificación ({email}): {status} {sent}")
+        return
+    check("verificación de correo", "POST", "/api/auth/verify-email", {"token": token})
+
+
+verify_demo_account(OWNER_EMAIL, "web")
+verify_demo_account(SOCIO_EMAIL, "mobile")
+
+status, invalid, _ = call("POST", "/api/auth/verify-email", {"token": "token-no-valido"})
+code = invalid.get("error", {}).get("code") if isinstance(invalid, dict) else None
+if status == 400 and code == "VERIFICATION_TOKEN_INVALID":
+    print("OK  token inválido rechazado: 400 VERIFICATION_TOKEN_INVALID")
+else:
+    FAILURES.append("token inválido rechazado")
+    print(f"FAIL token inválido rechazado: {status} {code}")
+
 print("\n== Autenticación web ==")
-status, login_data, cookies = call("POST", "/api/auth/web/login", {"email": "owner@ludusgym.com", "password": "Owner2026!", "platform": "web"})
+status, login_data, cookies = call("POST", "/api/auth/web/login", {"email": OWNER_EMAIL, "password": "Owner2026!", "platform": "web"})
 WEB = {"Cookie": "; ".join(c.split(";")[0] for c in cookies if "ludus_" in c), "X-CSRF-Token": login_data.get("csrfToken", "")}
 print("Cookies:", len(WEB["Cookie"].split("; ")))
 check("CSRF requerido en mutación web", "POST", "/api/cash-sessions", {"startingAmount": 1}, headers={"Cookie": WEB["Cookie"]}, expect=403)
@@ -60,10 +93,10 @@ check("auditoría", "GET", "/api/audit-logs", headers=WEB)
 check("equipo", "GET", "/api/staff", headers=WEB)
 check("inventario", "GET", "/api/inventory", headers=WEB)
 check("QR denegado en web", "POST", "/api/access/qr-token", {}, headers={**WEB, "x-platform": "web"}, expect=403)
-check("socio denegado en web", "POST", "/api/auth/web/login", {"email": "socio@ludusgym.com", "password": "Ludus2026!", "platform": "web"}, expect=403)
+check("socio denegado en web", "POST", "/api/auth/web/login", {"email": SOCIO_EMAIL, "password": "Ludus2026!", "platform": "web"}, expect=403)
 
 print("\n== Autenticación móvil ==")
-member = check("socio login", "POST", "/api/auth/mobile/login", {"email": "socio@ludusgym.com", "password": "Ludus2026!", "platform": "mobile", "deviceId": "test-device-001"})
+member = check("socio login", "POST", "/api/auth/mobile/login", {"email": SOCIO_EMAIL, "password": "Ludus2026!", "platform": "mobile", "deviceId": "test-device-001"})
 TOKEN = member["accessToken"] if member else None
 check("socio /me", "GET", "/api/members/me", token=TOKEN)
 qr = check("QR token", "POST", "/api/access/qr-token", {}, token=TOKEN)

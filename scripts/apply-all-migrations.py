@@ -8,7 +8,10 @@ for line in (root / ".env.local").read_text(encoding="utf-8").splitlines():
         key, value = line.split("=", 1)
         env[key.strip()] = value.strip()
 
-conn = psycopg2.connect(env["DATABASE_URL"], connect_timeout=20)
+# DDL debe ejecutarse contra la conexión directa (el pooler de Supabase no
+# acepta algunos parámetros de libpq ni transacciones DDL largas).
+dsn = env.get("DIRECT_URL") or env["DATABASE_URL"]
+conn = psycopg2.connect(dsn, connect_timeout=20)
 conn.autocommit = True
 cur = conn.cursor()
 

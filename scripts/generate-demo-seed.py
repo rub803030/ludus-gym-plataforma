@@ -22,9 +22,9 @@ def scrypt_hash(password: str) -> str:
 
 
 staff = [
-    ("00000000-0000-7000-8000-000000000101", "owner@ludusgym.com", "Owner2026!", "Ricardo Dueño", "OWNER"),
-    ("00000000-0000-7000-8000-000000000102", "manager@ludusgym.com", "Manager2026!", "Mariana Encargado", "MANAGER"),
-    ("00000000-0000-7000-8000-000000000103", "staff@ludusgym.com", "Staff2026!", "Sofía Recepción", "STAFF"),
+    ("00000000-0000-7000-8000-000000000101", "rubnlira2+owner@gmail.com", "Owner2026!", "Ricardo Dueño", "OWNER"),
+    ("00000000-0000-7000-8000-000000000102", "rubnlira2+manager@gmail.com", "Manager2026!", "Mariana Encargado", "MANAGER"),
+    ("00000000-0000-7000-8000-000000000103", "rubnlira2+staff@gmail.com", "Staff2026!", "Sofía Recepción", "STAFF"),
 ]
 
 member_id = "00000000-0000-7000-8000-000000000201"
@@ -32,8 +32,8 @@ member_hash = scrypt_hash("Ludus2026!")
 
 lines = [
     "-- Datos demo de Ludus GYM (SOLO desarrollo).",
-    "-- Passwords: owner@ludusgym.com/Owner2026!, manager@ludusgym.com/Manager2026!,",
-    "--             staff@ludusgym.com/Staff2026!, socio@ludusgym.com/Ludus2026!",
+    "-- Correos: rubnlira2+owner/+manager/+staff/+socio@gmail.com (requieren verificación).",
+    "-- Passwords: Owner2026!, Manager2026!, Staff2026!, Ludus2026!",
     "",
 ]
 for uid, email, password, name, role in staff:
@@ -47,7 +47,7 @@ lines += [
     "",
     f"INSERT INTO members (id, gym_id, code, first_name, last_name, email, phone, document_type, "
     "document_number, birth_date, status, joined_at) "
-    f"VALUES ('{member_id}', '{gym_id}', 'LUD-000001', 'Ana', 'Martínez', 'socio@ludusgym.com', "
+    f"VALUES ('{member_id}', '{gym_id}', 'LUD-000001', 'Ana', 'Martínez', 'rubnlira2+socio@gmail.com', "
     "'+52 55 1234 5678', 'INE', 'MART890123ABC', '1998-03-12', 'ACTIVE', now()) "
     "ON CONFLICT (id) DO NOTHING;",
     "",
