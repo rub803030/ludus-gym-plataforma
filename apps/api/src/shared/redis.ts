@@ -48,6 +48,18 @@ class MemoryCache implements CacheClient {
 }
 
 let client: CacheClient | null = null
+let rawRedis: Redis | null = null
+
+/**
+ * Cliente ioredis crudo, reutilizado por @fastify/rate-limit para que el
+ * contador sea compartido entre todas las instancias de la API. Devuelve
+ * null cuando no hay REDIS_URL (desarrollo sin Redis → store en memoria).
+ */
+export function getRedisClient(): Redis | null {
+  if (client) return rawRedis
+  getCache()
+  return rawRedis
+}
 
 export function getCache(): CacheClient {
   if (client) return client
@@ -62,6 +74,7 @@ export function getCache(): CacheClient {
     enableOfflineQueue: false,
     connectTimeout: 1500,
   })
+  rawRedis = redis
   redis.on('error', () => undefined)
   redis
     .connect()
