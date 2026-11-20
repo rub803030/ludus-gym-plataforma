@@ -20,3 +20,6 @@ apps/mobile/local.properties
 apps/mobile/app/build/
 apps/mobile/.idea/
 .DS_Store
+.vercel
+.env*
+!.env.example
