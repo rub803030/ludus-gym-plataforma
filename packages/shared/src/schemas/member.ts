@@ -8,6 +8,8 @@ export const createMemberSchema = z.object({
   phone: z.string().min(8).max(24),
   birthDate: z.string().date(),
   medicalNotes: z.string().max(2000).optional(),
+  allergies: z.string().max(2000).optional(),
+  conditions: z.string().max(2000).optional(),
 })
 
 export type CreateMemberInput = z.infer<typeof createMemberSchema>

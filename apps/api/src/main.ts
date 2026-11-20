@@ -8,7 +8,8 @@ import { ZodError } from 'zod'
 import { Server as SocketServer } from 'socket.io'
 import { loadEnv } from './config/env.js'
 import { DomainError } from './shared/errors/domain-error.js'
-import { getCache } from './shared/redis.js'
+import { getCache, getRedisClient } from './shared/redis.js'
+import { csrfGuard, getCsrfSecret } from './shared/middleware/csrf.js'
 import { registerAuthRoutes } from './modules/auth/routes.js'
 import { registerMemberRoutes } from './modules/members/routes.js'
 import { registerBillingRoutes } from './modules/billing/routes.js'
@@ -22,7 +23,8 @@ export async function buildApp() {
   let env
   try {
     env = loadEnv()
-  } catch {
+  } catch (error) {
+    if (process.env.NODE_ENV === 'production') throw error
     env = {
       NODE_ENV: (process.env.NODE_ENV ?? 'development') as 'development',
       API_PORT: Number(process.env.API_PORT ?? 4000),
@@ -34,17 +36,29 @@ export async function buildApp() {
       FIELD_ENCRYPTION_KEY: process.env.FIELD_ENCRYPTION_KEY ?? '',
       CSRF_SECRET: process.env.CSRF_SECRET ?? '',
       CORS_ORIGIN: process.env.CORS_ORIGIN ?? 'http://localhost:3000',
+      RATE_LIMIT_MAX: Number(process.env.RATE_LIMIT_MAX ?? 120),
     }
   }
 
   const app = Fastify({ logger: { level: env.NODE_ENV === 'production' ? 'warn' : 'info' }, trustProxy: true })
 
   await app.register(helmet, { contentSecurityPolicy: false })
-  await app.register(cookie, { secret: env.CSRF_SECRET || 'dev-cookie-secret' })
+  await app.register(cookie, { secret: getCsrfSecret() })
   await app.register(cors, { origin: env.CORS_ORIGIN, credentials: true })
+
+  // Protección CSRF real para el console web (las apps móvil usan Bearer).
+  app.addHook('onRequest', csrfGuard())
+
+  // Con Redis el contador se comparte entre réplicas; sin él se usa el store
+  // local del plugin (aceptable solo en desarrollo / una sola instancia).
+  const rateLimitRedis = getRedisClient()
   await app.register(rateLimit, {
-    max: env.NODE_ENV === 'test' ? 1000 : 120,
+    max: env.NODE_ENV === 'test' ? 1000 : env.RATE_LIMIT_MAX,
     timeWindow: '1 minute',
+    nameSpace: 'ludus-rate-limit:',
+    ...(rateLimitRedis ? { redis: rateLimitRedis } : {}),
+    // Nunca derribamos la API si Redis cae; el store local sigue protegiendo.
+    skipOnError: true,
   })
 
   app.setErrorHandler((error, _req, reply) => {

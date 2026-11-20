@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { mobileLoginSchema, webLoginSchema } from '@ludus/shared'
 import { DomainError } from '../../shared/errors/domain-error.js'
 import { requireAuth } from '../../shared/http.js'
-import { signCsrf } from '../../shared/middleware/csrf.js'
+import { getCsrfSecret, signCsrf } from '../../shared/middleware/csrf.js'
 import { getPrincipal } from '../../shared/middleware/request-context.js'
 import { prisma } from '../../shared/database/prisma.js'
 import {
@@ -38,7 +38,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
     const body = parse(webLoginSchema, req.body)
     const result = await loginWeb(body.email, body.password)
     const sessionId = randomUUID()
-    const csrfToken = signCsrf(process.env.CSRF_SECRET ?? 'dev-csrf-secret', sessionId)
+    const csrfToken = signCsrf(getCsrfSecret(), sessionId)
     reply
       .setCookie('ludus_sid', sessionId, cookieOptions)
       .setCookie('ludus_token', result.accessToken, cookieOptions)

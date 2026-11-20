@@ -47,9 +47,10 @@ print("== Health ==")
 check("health", "GET", "/health")
 
 print("\n== Autenticación web ==")
-_, _, cookies = call("POST", "/api/auth/web/login", {"email": "owner@ludusgym.com", "password": "Owner2026!", "platform": "web"})
-WEB = {"Cookie": "; ".join(c.split(";")[0] for c in cookies if "ludus_" in c)}
+status, login_data, cookies = call("POST", "/api/auth/web/login", {"email": "owner@ludusgym.com", "password": "Owner2026!", "platform": "web"})
+WEB = {"Cookie": "; ".join(c.split(";")[0] for c in cookies if "ludus_" in c), "X-CSRF-Token": login_data.get("csrfToken", "")}
 print("Cookies:", len(WEB["Cookie"].split("; ")))
+check("CSRF requerido en mutación web", "POST", "/api/cash-sessions", {"startingAmount": 1}, headers={"Cookie": WEB["Cookie"]}, expect=403)
 me = check("owner /me", "GET", "/api/auth/me", headers=WEB)
 check("planes", "GET", "/api/plans", headers=WEB)
 check("socios", "GET", "/api/members", headers=WEB)

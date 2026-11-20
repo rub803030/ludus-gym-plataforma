@@ -42,7 +42,7 @@ class QrViewModel(
                 val expired = current?.isExpired(nowMillis) ?: true
                 val needsRotation = current?.offline == true &&
                     (nowMillis - lastIssuedAt) >= 30_000L
-                if (expired || needsRotation || current == null) refresh()
+                if (expired || needsRotation) refresh()
             }
         }
     }

@@ -1,9 +1,26 @@
+import java.util.Properties
+
 plugins {
   id("com.android.application")
   id("org.jetbrains.kotlin.android")
   id("org.jetbrains.kotlin.plugin.compose")
   id("com.google.devtools.ksp")
 }
+
+// La firma de release se lee de local.properties (ignorado por git) o de
+// propiedades de Gradle/ci. Nunca se versiona el keystore ni su contraseña.
+val localProps = Properties().apply {
+  val file = rootProject.file("local.properties")
+  if (file.exists()) file.inputStream().use { load(it) }
+}
+fun signingProp(name: String): String? =
+  providers.gradleProperty(name).orNull ?: localProps.getProperty(name)?.toString()
+
+val storeFileProp = signingProp("LUDUS_RELEASE_STORE_FILE")
+val storePasswordProp = signingProp("LUDUS_RELEASE_STORE_PASSWORD")
+val keyAliasProp = signingProp("LUDUS_RELEASE_KEY_ALIAS")
+val keyPasswordProp = signingProp("LUDUS_RELEASE_KEY_PASSWORD")
+val hasReleaseSigning = listOf(storeFileProp, storePasswordProp, keyAliasProp, keyPasswordProp).all { !it.isNullOrBlank() }
 
 android {
   namespace = "com.ludus.gym"
@@ -18,10 +35,28 @@ android {
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
 
+  signingConfigs {
+    if (hasReleaseSigning) {
+      create("release") {
+        storeFile = rootProject.file(storeFileProp!!)
+        storePassword = storePasswordProp
+        keyAlias = keyAliasProp
+        keyPassword = keyPasswordProp
+      }
+    }
+  }
+
   buildTypes {
     release {
       isMinifyEnabled = true
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+      if (hasReleaseSigning) {
+        signingConfig = signingConfigs.getByName("release")
+      } else {
+        // Permite compilar/release en CI sin secretos, pero el AAB queda
+        // sin firmar y NO es publicable. La tarea avisa explícitamente.
+        logger.warn("LUDUS_RELEASE_* sin configurar: el AAB de release no estará firmado.")
+      }
     }
   }
 
@@ -52,6 +87,8 @@ dependencies {
 
   implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
   implementation("androidx.security:security-crypto:1.1.0-alpha06")
+  // Requerido por Tink al ofuscar con R8 (anotaciones de errorprone).
+  implementation("com.google.errorprone:error_prone_annotations:2.28.0")
   implementation("androidx.room:room-runtime:2.6.1")
   implementation("androidx.room:room-ktx:2.6.1")
   ksp("androidx.room:room-compiler:2.6.1")
