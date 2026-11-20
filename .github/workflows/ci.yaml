@@ -54,4 +54,4 @@ jobs:
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: '17' }
       - uses: gradle/actions/setup-gradle@v3
-      - run: cd apps/mobile && bash ./gradlew :app:testDebugUnitTest :app:lintDebug --no-daemon
+      - run: cd apps/mobile && sed -i 's/\r$//' ./gradlew && bash ./gradlew :app:testDebugUnitTest :app:lintDebug --no-daemon
