@@ -7,7 +7,7 @@ import { getPrincipal } from '../../shared/middleware/request-context.js'
 import { requirePermission } from '../../shared/middleware/rbac.js'
 import { requireAuth, parsePagination } from '../../shared/http.js'
 import { decryptOptional, encryptOptional } from '../../shared/crypto.js'
-import { hashPassword } from '../../shared/password.js'
+import { generateTemporaryPassword, hashPassword } from '../../shared/password.js'
 import { writeAudit } from '../../shared/audit.js'
 
 const updateSchema = createMemberSchema.partial().extend({ status: z.enum(['ACTIVE', 'PENDING', 'EXPIRED', 'SUSPENDED']).optional() })
@@ -173,6 +173,7 @@ export async function registerMemberRoutes(app: FastifyInstance): Promise<void> 
     const principal = getPrincipal(req)
     const count = await prisma.member.count({ where: { gymId: principal.gymId } })
     const code = `LUD-${String(count + 1).padStart(6, '0')}`
+    const temporaryPassword = generateTemporaryPassword()
     const member = await prisma.member.create({
       data: {
         gymId: principal.gymId,
@@ -184,7 +185,9 @@ export async function registerMemberRoutes(app: FastifyInstance): Promise<void> 
         documentNumber: body.document,
         birthDate: new Date(body.birthDate),
         medicalNotesCipher: encryptOptional(body.medicalNotes),
-        passwordHash: hashPassword('Ludus2026!'),
+        allergiesCipher: encryptOptional(body.allergies),
+        conditionsCipher: encryptOptional(body.conditions),
+        passwordHash: hashPassword(temporaryPassword),
         status: 'PENDING',
       },
     })
@@ -197,7 +200,8 @@ export async function registerMemberRoutes(app: FastifyInstance): Promise<void> 
       entityId: member.id,
     })
     reply.code(201)
-    return toDto(member)
+    // Se entrega una sola vez al staff para que se la pase al socio.
+    return { ...toDto(member), temporaryPassword }
   })
 
   app.patch('/api/members/:id', { preHandler: [requireAuth, requirePermission('members:write')] }, async (req) => {
@@ -216,6 +220,8 @@ export async function registerMemberRoutes(app: FastifyInstance): Promise<void> 
         documentNumber: body.document,
         status: body.status,
         medicalNotesCipher: body.medicalNotes !== undefined ? encryptOptional(body.medicalNotes) : undefined,
+        allergiesCipher: body.allergies !== undefined ? encryptOptional(body.allergies) : undefined,
+        conditionsCipher: body.conditions !== undefined ? encryptOptional(body.conditions) : undefined,
       },
     })
     await writeAudit({
