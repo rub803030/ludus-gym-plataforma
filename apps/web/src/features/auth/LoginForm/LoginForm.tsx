@@ -11,6 +11,7 @@ import {
   setSession,
 } from '@/lib/api-client'
 import { Button } from '@/ui/primitives/Button'
+import { isApiError } from '@/types'
 
 interface FieldErrors {
   email?: string
@@ -25,10 +26,15 @@ export function LoginForm() {
   const [errors, setErrors] = useState<FieldErrors>({})
   const [loading, setLoading] = useState(false)
   const [memberRejected, setMemberRejected] = useState(false)
+  const [verificationRequired, setVerificationRequired] = useState(false)
+  const [verificationSent, setVerificationSent] = useState(false)
+  const [resending, setResending] = useState(false)
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setMemberRejected(false)
+    setVerificationRequired(false)
+    setVerificationSent(false)
     const nextErrors: FieldErrors = {}
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       nextErrors.email = 'Captura un correo electrónico válido.'
@@ -55,9 +61,27 @@ export function LoginForm() {
       router.replace('/dashboard')
       router.refresh()
     } catch (error) {
+      if (isApiError(error) && error.code === 'EMAIL_NOT_VERIFIED') {
+        setVerificationRequired(true)
+      }
       setErrors({ form: getErrorMessage(error) })
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function handleResend() {
+    const normalized = email.trim()
+    if (!normalized) return
+    setResending(true)
+    setVerificationSent(false)
+    try {
+      await api.auth.resendVerification(normalized, 'web')
+      setVerificationSent(true)
+    } catch (error) {
+      setErrors({ form: getErrorMessage(error) })
+    } finally {
+      setResending(false)
     }
   }
 
@@ -129,6 +153,29 @@ export function LoginForm() {
           <div role="alert" className="border-l-2 border-ignition bg-surface px-4 py-3 text-sm leading-relaxed text-ink">
             Esta credencial pertenece a un socio. El acceso web está reservado al equipo de operación; los socios
             ingresan desde la app móvil.
+          </div>
+        ) : null}
+
+        {verificationRequired ? (
+          <div role="alert" className="space-y-3 border-l-2 border-volt bg-surface px-4 py-3 text-sm leading-relaxed text-ink">
+            <p className="font-semibold uppercase tracking-[0.12em] text-volt">Correo sin verificar</p>
+            <p>
+              Confirma tu dirección antes de entrar. Te enviamos el enlace a <strong>{email.trim()}</strong>.
+            </p>
+            {verificationSent ? (
+              <p className="text-xs text-muted">Correo reenviado. Revisa también tu carpeta de spam.</p>
+            ) : null}
+            <div className="flex flex-wrap gap-2">
+              <Button variant="ghost" loading={resending} onClick={handleResend}>
+                {resending ? 'Enviando' : 'Reenviar correo'}
+              </Button>
+              <a
+                href={`/verify-email?email=${encodeURIComponent(email.trim())}`}
+                className="inline-flex min-h-12 items-center px-3 text-[11px] font-bold uppercase tracking-[0.16em] text-volt hover:underline"
+              >
+                Ya verifiqué · abrir enlace
+              </a>
+            </div>
           </div>
         ) : null}
 

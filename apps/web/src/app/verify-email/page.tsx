@@ -1,0 +1,33 @@
+import { Suspense } from 'react'
+import { VerifyEmail } from '@/features/auth/VerifyEmail/VerifyEmail'
+
+export const dynamic = 'force-dynamic'
+
+export default function VerifyEmailPage() {
+  return (
+    <main className="grid min-h-screen lg:grid-cols-[1.15fr_1fr]">
+      <section className="relative flex flex-col justify-between overflow-hidden border-b border-hairline px-7 py-10 md:px-16 md:py-14 lg:min-h-screen lg:border-b-0 lg:border-r">
+        <div aria-hidden className="pointer-events-none absolute -right-40 top-1/4 h-[540px] w-[540px] rounded-full border border-hairline" />
+        <div aria-hidden className="pointer-events-none absolute -right-24 top-1/3 h-[380px] w-[380px] rounded-full border border-hairline" />
+        <p className="relative font-display text-sm font-extrabold uppercase tracking-[0.24em] text-ink">
+          Ludus<span className="text-volt">.</span>
+        </p>
+        <p className="relative max-w-sm text-xs uppercase tracking-[0.2em] text-muted/60">
+          Kinetic Obsidian · Identidad verificada
+        </p>
+      </section>
+
+      <section className="flex items-center justify-center px-7 py-14 md:px-12">
+        <Suspense
+          fallback={
+            <div role="status" className="w-full max-w-md text-sm text-muted">
+              Preparando verificación…
+            </div>
+          }
+        >
+          <VerifyEmail />
+        </Suspense>
+      </section>
+    </main>
+  )
+}
