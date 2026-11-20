@@ -4,8 +4,8 @@
 
 | Componente | Plataforma recomendada | Notas |
 | --- | --- | --- |
-| Web | Vercel | Framework Next.js, root directory `apps/web` |
-| API | Fly.io / Railway | Dockerfile `infra/docker/Dockerfile.api` |
+| Web | Vercel | URL HTTPS gratuita `*.vercel.app`; root directory `apps/web` |
+| API | Fly.io | Dockerfile `infra/docker/Dockerfile.api`, config en `fly.toml` |
 | Base de datos | Supabase (ya configurada) | Aplicar migraciones con `pnpm db:migrate` |
 | Redis | Upstash | Rate limit distribuido, revocación, idempotencia y Socket.io |
 | Almacenamiento | Cloudflare R2 | Presigned URLs, reemplaza MinIO local |
@@ -13,13 +13,19 @@
 
 ## Variables de entorno de producción
 
+La web llama a `/api/*` en el mismo origen; Next.js redirige a `API_UPSTREAM_URL`.
+Así las cookies siguen siendo del mismo sitio aunque la API esté en Fly.io.
+La guía completa está en `docs/CONFIGURATION.md`.
+
 Rotar TODOS los secretos de `.env.example`. Nunca reutilizar los valores de desarrollo:
 
 - `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `QR_HMAC_SECRET`, `FIELD_ENCRYPTION_KEY`, `CSRF_SECRET`: valores aleatorios de 32+ bytes.
 - `DATABASE_URL` / `DIRECT_URL`: cadena de Supabase con contraseña real (usar pooler para `DATABASE_URL` y conexión directa para `DIRECT_URL`).
-- `CORS_ORIGIN`: dominio **HTTPS** exacto de la web. La API rechaza el arranque en producción si es `localhost` o no usa HTTPS.
+- `CORS_ORIGIN`: dominio **HTTPS** exacto de la web (URL de Vercel). La API rechaza el arranque si es `localhost` o no usa HTTPS.
 - `NODE_ENV=production`.
-- `REDIS_URL`: obligatorio en producción para que el rate limit sea compartido entre réplicas. Sin él se usa store local (solo apto para una instancia).
+- `REDIS_URL`: obligatorio y compartido en producción para el rate limit.
+- `NEXT_PUBLIC_API_URL`: se deja vacío en Vercel (mismo origen).
+- `API_UPSTREAM_URL`: URL HTTPS de la API en Fly.io, configurada solo en Vercel.
 
 ## Pasos
 

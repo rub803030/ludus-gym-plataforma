@@ -53,6 +53,7 @@ python scripts/verify-all.py         # typecheck + tests + builds
 ```
 
 - `docs/DEPLOYMENT.md` — arquitectura, variables y checklist de venta.
+- `docs/CONFIGURATION.md` — configuración centralizada y URL pública.
 - `docs/USER_GUIDE.md` — guía de uso para el gimnasio.
 - `docs/runbooks/` — backups, rotación de secretos, incidentes, despliegue y Android.
 

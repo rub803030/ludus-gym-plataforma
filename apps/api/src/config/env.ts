@@ -22,13 +22,27 @@ const envSchema = z.object({
   S3_SECRET_KEY: z.string().default('minioadmin'),
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(120),
 }).superRefine((value, ctx) => {
+  const encryptionKey = Buffer.from(value.FIELD_ENCRYPTION_KEY.replace(/^base64:/, ''), 'base64')
+  if (encryptionKey.length !== 32) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['FIELD_ENCRYPTION_KEY'], message: 'Debe contener exactamente 32 bytes en base64' })
+  }
   if (value.NODE_ENV !== 'production') return
+
   const origin = new URL(value.CORS_ORIGIN)
   if (origin.protocol !== 'https:') {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['CORS_ORIGIN'], message: 'CORS_ORIGIN debe usar HTTPS en producción' })
   }
   if (['localhost', '127.0.0.1', '::1'].includes(origin.hostname)) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['CORS_ORIGIN'], message: 'CORS_ORIGIN no puede ser localhost en producción' })
+  }
+  if (!value.DIRECT_URL) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['DIRECT_URL'], message: 'DIRECT_URL es obligatorio en producción para migraciones' })
+  }
+  if (new URL(value.REDIS_URL).hostname === 'localhost') {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['REDIS_URL'], message: 'REDIS_URL debe ser un Redis compartido en producción' })
+  }
+  if (value.S3_ACCESS_KEY === 'minioadmin' || value.S3_SECRET_KEY === 'minioadmin' || value.S3_ENDPOINT.includes('localhost')) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['S3_ACCESS_KEY'], message: 'La configuración S3 de desarrollo no es válida en producción' })
   }
 })
 
