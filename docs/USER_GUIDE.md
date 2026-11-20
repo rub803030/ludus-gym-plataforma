@@ -5,6 +5,8 @@
 ### Ingreso
 Abrir la web e iniciar sesión con una cuenta de **OWNER**, **MANAGER** o **STAFF**.
 Los socios no pueden ingresar aquí; la app rechaza explícitamente sus credenciales.
+Al crear una cuenta se envía un correo de confirmación: hay que abrir el enlace antes
+de poder entrar. Si no llegó, usa **Reenviar correo** en la pantalla de acceso.
 
 ### Operación diaria
 
@@ -32,7 +34,7 @@ Los socios no pueden ingresar aquí; la app rechaza explícitamente sus credenci
 
 ## Para socios (app Android)
 
-1. Ingresar con `socio@ludusgym.com` / `Ludus2026!` (demo).
+1. Confirmar el correo enviado al dar de alta la cuenta (en demo: `rubnlira2+socio@gmail.com` / `Ludus2026!`). Si el enlace no abre en la app, se puede pegar el código en la pantalla de verificación o abrir la web.
 2. **Inicio**: estado de membresía y días restantes.
 3. **QR**: pase dinámico con cuenta regresiva. Si no hay red, se muestra una credencial firmada válida por 10 minutos.
 4. **Rutina**: series del día, peso y RPE. Funciona sin conexión; sincroniza después.
@@ -43,6 +45,7 @@ Los socios no pueden ingresar aquí; la app rechaza explícitamente sus credenci
 
 | Síntoma | Acción |
 | --- | --- |
+| "Tu correo aún no está verificado" | Abre el enlace del correo, revisa spam o pulsa **Reenviar correo** / **Reenviar** en la app. |
 | "La licencia fue revocada" | El OWNER suspendió la cuenta; vuelve a iniciar sesión tras reactivarla. |
 | "Token CSRF inválido" | Recarga la página y vuelve a intentar. |
 | "Esta operación ya fue procesada" | El cobro ya se registró; revisa el recibo antes de repetir. |

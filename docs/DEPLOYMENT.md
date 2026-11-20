@@ -26,10 +26,11 @@ Rotar TODOS los secretos de `.env.example`. Nunca reutilizar los valores de desa
 - `REDIS_URL`: se deja vacío con una sola instancia de Fly (trial sin tarjeta). Para varias instancias, configurar Redis compartido de Upstash.
 - `NEXT_PUBLIC_API_URL`: se deja vacío en Vercel (mismo origen).
 - `API_UPSTREAM_URL`: URL HTTPS de la API en Fly.io, configurada solo en Vercel.
+- `RESEND_API_KEY`, `EMAIL_FROM`, `WEB_APP_URL`, `EMAIL_VERIFICATION_TTL_MINUTES`: secretos/variables de la API en Fly.io para el correo de verificación obligatoria.
 
 ## Pasos
 
-1. Aplicar migraciones: `pnpm --filter @ludus/api db:migrate` (incluye `0004_rls_remaining.sql`).
+1. Aplicar migraciones SQL reales con `python scripts/apply-all-migrations.py` (lee `.env.local`, usa `DIRECT_URL` y aplica `0001`…`0005` más los seeds). El script `db:migrate` de Prisma no aplica estas SQL.
 2. Verificar RLS: las 25 tablas `public` deben tener `relrowsecurity = true` y 26 políticas.
 3. Crear el primer OWNER:
 
@@ -41,10 +42,11 @@ Rotar TODOS los secretos de `.env.example`. Nunca reutilizar los valores de desa
      --gym-name 'Tu GYM'
    ```
 
-   Para rotar la contraseña de un OWNER existente añade `--force`.
-4. Desplegar API y Web.
-5. Verificar `/health` en Fly y el login web en Vercel (la respuesta devuelve `csrfToken` y 4 cookies de sesión).
-6. Generar el AAB firmado y subir a Play Console (ver `docs/runbooks/android-release.md`).
+   Para rotar la contraseña de un OWNER existente añade `--force`. El OWNER creado por este script queda marcado como verificado.
+4. Configurar los secretos de Resend en Fly (`fly secrets set RESEND_API_KEY=... EMAIL_FROM='...' WEB_APP_URL=...`). Reiniciar la API.
+5. Desplegar API y Web.
+6. Verificar `/health` en Fly y el login web en Vercel (la respuesta devuelve `csrfToken` y 4 cookies de sesión). Probar también `/verify-email` desde el correo recibido.
+7. Generar el AAB firmado y subir a Play Console (ver `docs/runbooks/android-release.md`).
 
 ## Checklist de seguridad antes de vender
 
@@ -59,6 +61,7 @@ Rotar TODOS los secretos de `.env.example`. Nunca reutilizar los valores de desa
 - [x] AAB firmado mediante `LUDUS_RELEASE_*` (ver runbook).
 - [ ] Secretos rotados y fuera del repositorio (**responsable del cliente** antes de facturar).
 - [ ] Backups automáticos de Supabase habilitados (**verificar en consola**).
+- [x] Verificación de correo obligatoria para STAFF y SOCIOS, con enlace de un solo uso y reenvío limitado.
 - [x] Pruebas de RBAC y build en CI en verde.
 
 ## Runbooks
