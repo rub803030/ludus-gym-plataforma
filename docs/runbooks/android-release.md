@@ -24,6 +24,7 @@ LUDUS_RELEASE_KEY_PASSWORD=<password>
 Compilar con JDK 21 portable (el JBR de Android Studio es Java 25 y no es compatible con Gradle 8.7):
 
 ```powershell
+# Apunta JAVA_HOME a un JDK 21 instalado en tu máquina
 $env:JAVA_HOME='C:\ruta\a\jdk-21'
 cd apps\mobile
 .\gradlew :app:bundleRelease --no-daemon
