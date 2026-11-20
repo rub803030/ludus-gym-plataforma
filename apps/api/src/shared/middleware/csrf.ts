@@ -3,6 +3,14 @@ import type { FastifyReply, FastifyRequest } from 'fastify'
 import { DomainError } from '../errors/domain-error.js'
 
 const MUTATIONS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
+// Rutas públicas que se crean a sí mismas: no hay sid/CSRF todavía.
+// Set exacto para evitar bypass por sufijo (/api/auth/web/login/extra).
+const PUBLIC_MUTATIONS = new Set([
+  '/api/auth/web/login',
+  '/api/auth/mobile/login',
+  '/api/auth/verify-email',
+  '/api/auth/verify-email/resend',
+])
 let cachedSecret: string | null = null
 
 /**
@@ -26,8 +34,7 @@ export function csrfGuard() {
     // Las apps móvil usan Bearer + x-platform; el navegador usa cookies.
     if (req.headers['x-platform'] === 'mobile') return
     if (req.headers.authorization?.startsWith('Bearer ')) return
-    // El login debe poder crearse a sí mismo: aún no hay sid ni token CSRF.
-    if (req.url.startsWith('/api/auth/web/login') || req.url.startsWith('/api/auth/mobile/login')) return
+    if (PUBLIC_MUTATIONS.has(req.url.split('?')[0] ?? '')) return
     const token = req.headers['x-csrf-token']
     const sessionId = req.cookies['ludus_sid']
     if (typeof token !== 'string' || !sessionId) {

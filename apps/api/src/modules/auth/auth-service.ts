@@ -45,6 +45,9 @@ export async function loginWeb(email: string, password: string): Promise<LoginRe
   if (!verifyPassword(password, user.passwordHash)) {
     throw new DomainError('UNAUTHORIZED', 'Correo o contraseña incorrectos', 401)
   }
+  if (!user.emailVerified) {
+    throw new DomainError('EMAIL_NOT_VERIFIED', 'Verifica tu correo para entrar a la consola', 403, { email: user.email })
+  }
   if (!user.isActive || user.suspendedAt) {
     throw new DomainError('FORBIDDEN', 'Esta licencia está suspendida. Contacta al dueño', 403)
   }
@@ -80,6 +83,9 @@ export async function loginMember(email: string, password: string, deviceId: str
   })
   if (!member?.passwordHash || !verifyPassword(password, member.passwordHash)) {
     throw new DomainError('UNAUTHORIZED', 'Correo o contraseña incorrectos', 401)
+  }
+  if (!member.emailVerified) {
+    throw new DomainError('EMAIL_NOT_VERIFIED', 'Verifica tu correo para usar la app', 403, { email: member.email })
   }
   if (member.status === 'SUSPENDED') {
     throw new DomainError('FORBIDDEN', 'Tu membresía está suspendida. Contacta recepción', 403)
@@ -133,6 +139,9 @@ export async function rotateRefresh(refreshToken: string): Promise<LoginResult> 
     if (!user || !user.isActive || user.suspendedAt) {
       throw new DomainError('UNAUTHORIZED', 'Licencia suspendida', 401)
     }
+    if (!user.emailVerified) {
+      throw new DomainError('EMAIL_NOT_VERIFIED', 'Verifica tu correo para continuar', 403, { email: user.email })
+    }
     await prisma.refreshToken.update({ where: { id: staffToken.id }, data: { usedAt: new Date() } })
     const input = { sub: user.id, role: user.role as Role, platform: claims.platform, gymId: user.gymId }
     const access = issueAccessToken(input)
@@ -164,6 +173,9 @@ export async function rotateRefresh(refreshToken: string): Promise<LoginResult> 
   }
   const member = await prisma.member.findUnique({ where: { id: memberSession.memberId } })
   if (!member) throw new DomainError('UNAUTHORIZED', 'Socio no encontrado', 401)
+  if (!member.emailVerified) {
+    throw new DomainError('EMAIL_NOT_VERIFIED', 'Verifica tu correo para continuar', 403, { email: member.email })
+  }
   await prisma.memberSession.update({ where: { id: memberSession.id }, data: { tokenHash: hashToken('used') } })
   const input = { sub: member.id, role: 'MEMBER' as const, platform: 'mobile' as const, gymId: member.gymId }
   const access = issueAccessToken(input)
@@ -214,16 +226,18 @@ export async function createStaff(input: {
   password: string
   fullName: string
   role: Role
-}): Promise<void> {
-  await prisma.staffUser.create({
+}): Promise<{ id: string; email: string; fullName: string }> {
+  const staff = await prisma.staffUser.create({
     data: {
       gymId: input.gymId,
       email: input.email.toLowerCase(),
       passwordHash: hashPassword(input.password),
       fullName: input.fullName,
       role: input.role as never,
+      emailVerified: false,
     },
   })
+  return { id: staff.id, email: staff.email, fullName: staff.fullName }
 }
 
 export async function suspendStaff(id: string, suspended: boolean): Promise<void> {
