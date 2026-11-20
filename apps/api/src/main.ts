@@ -37,6 +37,11 @@ export async function buildApp() {
       CSRF_SECRET: process.env.CSRF_SECRET ?? '',
       CORS_ORIGIN: process.env.CORS_ORIGIN ?? 'http://localhost:3000',
       RATE_LIMIT_MAX: Number(process.env.RATE_LIMIT_MAX ?? 120),
+      RESEND_API_KEY: process.env.RESEND_API_KEY ?? '',
+      EMAIL_FROM: process.env.EMAIL_FROM ?? 'Ludus GYM <onboarding@resend.dev>',
+      RESEND_TEST_RECIPIENT: process.env.RESEND_TEST_RECIPIENT || undefined,
+      WEB_APP_URL: process.env.WEB_APP_URL ?? 'http://localhost:3000',
+      EMAIL_VERIFICATION_TTL_MINUTES: Number(process.env.EMAIL_VERIFICATION_TTL_MINUTES ?? 30),
     }
   }
 

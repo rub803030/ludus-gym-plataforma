@@ -4,17 +4,25 @@ import com.ludus.gym.data.demo.DemoCatalog
 import com.ludus.gym.data.local.SecureTokenStore
 import com.ludus.gym.data.remote.ApiService
 import com.ludus.gym.data.remote.NetworkMonitor
+import com.ludus.gym.data.remote.dto.ApiErrorEnvelopeDto
 import com.ludus.gym.data.remote.dto.LoginRequestDto
+import com.ludus.gym.data.remote.dto.ResendVerificationRequestDto
+import com.ludus.gym.data.remote.dto.VerifyEmailRequestDto
+import com.ludus.gym.domain.model.EmailNotVerifiedException
 import com.ludus.gym.domain.model.Member
 import com.ludus.gym.domain.model.MembershipStatus
 import com.ludus.gym.domain.model.Session
+import com.squareup.moshi.Moshi
 import kotlinx.coroutines.flow.StateFlow
+import retrofit2.HttpException
+import java.net.URLDecoder
 
 class AuthRepository(
     private val api: ApiService,
     private val tokens: SecureTokenStore,
     private val members: MemberRepository,
     private val network: NetworkMonitor,
+    private val moshi: Moshi = Moshi.Builder().build(),
 ) {
     val session: StateFlow<Session?> = tokens.session
 
@@ -38,6 +46,9 @@ class AuthRepository(
             runCatching { members.refreshProfile(memberId) }
             member
         } catch (error: Exception) {
+            if (error is HttpException && error.code() == 403 && error.apiErrorCode() == "EMAIL_NOT_VERIFIED") {
+                throw EmailNotVerifiedException(email.trim())
+            }
             // Sin backend y con las credenciales de demo: sesión local de demostración.
             if (!network.isOnline() &&
                 email.trim().equals(DemoCatalog.DEMO_EMAIL, ignoreCase = true) &&
@@ -51,6 +62,17 @@ class AuthRepository(
                 throw error
             }
         }
+    }
+
+    suspend fun verifyEmail(token: String): Result<String> = runCatching {
+        val response = api.verifyEmail(VerifyEmailRequestDto(normalizeToken(token)))
+        if (!response.ok) error("No fue posible confirmar el correo")
+        response.email.orEmpty()
+    }
+
+    suspend fun resendVerification(email: String): Result<Unit> = runCatching {
+        api.resendVerification(ResendVerificationRequestDto(email.trim()))
+        Unit
     }
 
     suspend fun logout() {
@@ -73,4 +95,15 @@ class AuthRepository(
         planName = "Ludus Pro",
         daysRemaining = 28,
     )
+
+    private fun HttpException.apiErrorCode(): String? = runCatching {
+        val body = response()?.errorBody()?.string().orEmpty()
+        moshi.adapter(ApiErrorEnvelopeDto::class.java).fromJson(body)?.error?.code
+    }.getOrNull()
+
+    private fun normalizeToken(value: String): String {
+        val trimmed = value.trim()
+        val token = Regex("(?:[?&]token=)([^&#\\s]+)").find(trimmed)?.groupValues?.get(1) ?: trimmed
+        return URLDecoder.decode(token, Charsets.UTF_8)
+    }
 }

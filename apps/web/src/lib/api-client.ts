@@ -101,8 +101,18 @@ export function createIdempotencyKey(): string {
 
 function toApiError(status: number, body: unknown): ApiError {
   const r = asRecord(body)
-  const code = asString(coalesce(pick(r, 'code'), pick(r, 'errorCode'), pick(r, 'error')), `HTTP_${status}`)
-  const rawMessage = asString(coalesce(pick(r, 'message'), pick(r, 'detail'), pick(r, 'msg'), pick(r, 'error')))
+  // La API serializa { error: { code, message, details } }. Aceptar también el
+  // formato plano evita romper respuestas antiguas o de proxy.
+  const envelope = asRecord(pick(r, 'error'))
+  const source = Object.keys(envelope).length > 0 ? envelope : r
+  const rawError = pick(r, 'error')
+  const code = asString(
+    coalesce(pick(source, 'code'), pick(source, 'errorCode')),
+    typeof rawError === 'string' ? rawError : `HTTP_${status}`
+  )
+  const rawMessage = asString(
+    coalesce(pick(source, 'message'), pick(source, 'detail'), pick(source, 'msg'), rawError)
+  )
   const daysRaw = asNumber(
     coalesce(pick(r, 'days'), pick(r, 'daysOverdue'), pick(r, 'expiredDays'), pick(r, 'daysPastDue')),
     Number.parseInt(rawMessage.match(/(\d+)\s*(?:día|dia|day)/i)?.[1] ?? '0', 10)
@@ -120,6 +130,12 @@ function toApiError(status: number, body: unknown): ApiError {
     message = 'Esta cuenta es de socio y solo puede ingresar desde la app móvil.'
   } else if (code === 'INVALID_CREDENTIALS' || status === 401) {
     message = 'Correo o contraseña incorrectos. Verifica tus datos e inténtalo de nuevo.'
+  } else if (code === 'EMAIL_NOT_VERIFIED') {
+    message = 'Tu correo aún no está verificado. Revisa tu bandeja o solicita un nuevo enlace.'
+  } else if (code === 'VERIFICATION_TOKEN_EXPIRED') {
+    message = 'El enlace de verificación venció. Solicita uno nuevo.'
+  } else if (code === 'VERIFICATION_TOKEN_INVALID') {
+    message = 'El enlace de verificación no es válido o ya fue usado.'
   } else if (status === 403) {
     message = 'Tu perfil no tiene permisos para esta operación. Solicita acceso a un administrador.'
   } else if (code === 'DUPLICATE_ENTRY' || /duplicad|duplicate/i.test(`${code} ${rawMessage}`)) {
@@ -141,7 +157,7 @@ function toApiError(status: number, body: unknown): ApiError {
   }
 
   const error: ApiError = { status, code, message }
-  const details = pick(r, 'details', 'errors', 'fields')
+  const details = pick(source, 'details', 'errors', 'fields')
   if (details && typeof details === 'object' && !Array.isArray(details)) {
     error.details = details as Record<string, unknown>
   }
@@ -327,6 +343,20 @@ export const api = {
     },
     me(): Promise<unknown> {
       return apiFetch('/api/auth/me', { retry: false })
+    },
+    verifyEmail(token: string): Promise<unknown> {
+      return apiFetch('/api/auth/verify-email', {
+        method: 'POST',
+        retry: false,
+        body: JSON.stringify({ token }),
+      })
+    },
+    resendVerification(email: string, platform: 'web' | 'mobile' = 'web'): Promise<unknown> {
+      return apiFetch('/api/auth/verify-email/resend', {
+        method: 'POST',
+        retry: false,
+        body: JSON.stringify({ email, platform }),
+      })
     },
     logout(): Promise<unknown> {
       return apiFetch('/api/auth/logout', { method: 'POST', retry: false })

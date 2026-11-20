@@ -64,4 +64,13 @@ describe('protección CSRF', () => {
       guard(request({ url: '/api/auth/web/login' }), {} as never),
     ).resolves.toBeUndefined()
   })
+
+  it('exime a la verificación de correo', async () => {
+    await expect(
+      guard(request({ url: '/api/auth/verify-email' }), {} as never),
+    ).resolves.toBeUndefined()
+    await expect(
+      guard(request({ url: '/api/auth/verify-email/resend' }), {} as never),
+    ).resolves.toBeUndefined()
+  })
 })

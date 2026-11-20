@@ -21,7 +21,14 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
       headers: { cookie: cookieHeader },
       cache: 'no-store',
     })
-    if (response.status === 401 || response.status === 403) {
+    if (response.status === 403) {
+      const rawError: unknown = await response.json().catch(() => ({}))
+      const error = asRecord(pick(asRecord(rawError), 'error'))
+      if (asString(pick(error, 'code')) === 'EMAIL_NOT_VERIFIED') {
+        redirect('/verify-email?reason=unverified')
+      }
+      unauthorized = true
+    } else if (response.status === 401) {
       unauthorized = true
     } else if (response.ok) {
       const raw: unknown = await response.json()

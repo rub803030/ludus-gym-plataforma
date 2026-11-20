@@ -41,6 +41,8 @@ import com.ludus.gym.domain.usecase.RefreshClassesUseCase
 import com.ludus.gym.domain.usecase.RefreshNutritionUseCase
 import com.ludus.gym.domain.usecase.RefreshReceiptsUseCase
 import com.ludus.gym.domain.usecase.RefreshRoutinesUseCase
+import com.ludus.gym.domain.usecase.ResendVerificationUseCase
+import com.ludus.gym.domain.usecase.VerifyEmailUseCase
 import com.ludus.gym.domain.usecase.VerifyQrLocallyUseCase
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
@@ -52,6 +54,10 @@ import java.util.concurrent.TimeUnit
 /** Localizador de servicios manual: sin Hilt, fácil de inspeccionar y probar. */
 class AppContainer(context: Context) {
     private val appContext = context.applicationContext
+
+    companion object {
+        const val WEB_APP_URL = "https://ludus-gym-plataforma.vercel.app"
+    }
 
     private val baseUrl: String by lazy {
         val fingerprint = Build.FINGERPRINT.lowercase()
@@ -106,7 +112,7 @@ class AppContainer(context: Context) {
     }
 
     private val memberRepository = MemberRepository(api, dao)
-    val authRepository = AuthRepository(api, tokens, memberRepository, network)
+    val authRepository = AuthRepository(api, tokens, memberRepository, network, moshi)
     val qrRepository = QrRepository(api, dao, tokens, network)
     val workoutRepository = WorkoutRepository(api, dao, moshi, appContext)
     private val nutritionRepository = NutritionRepository(api)
@@ -114,6 +120,8 @@ class AppContainer(context: Context) {
     private val paymentRepository = PaymentRepository(api)
 
     val loginUseCase = LoginUseCase(authRepository)
+    val verifyEmailUseCase = VerifyEmailUseCase(authRepository)
+    val resendVerificationUseCase = ResendVerificationUseCase(authRepository)
     val logoutUseCase = LogoutUseCase(authRepository)
     val getProfileUseCase = GetProfileUseCase(authRepository)
     val observeProfileUseCase = ObserveProfileUseCase(memberRepository)

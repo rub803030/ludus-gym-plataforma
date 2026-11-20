@@ -7,6 +7,7 @@ import { getPrincipal } from '../../shared/middleware/request-context.js'
 import { requirePermission } from '../../shared/middleware/rbac.js'
 import { requireAuth } from '../../shared/http.js'
 import { changeStaffRole, createStaff, suspendStaff } from '../auth/auth-service.js'
+import { issueVerification } from '../auth/email-verification.js'
 import { writeAudit } from '../../shared/audit.js'
 
 const createSchema = z.object({
@@ -22,7 +23,7 @@ export async function registerStaffRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/staff', { preHandler: [requireAuth, requirePermission('staff:manage')] }, async (req) => {
     const staff = await prisma.staffUser.findMany({
       where: { gymId: getPrincipal(req).gymId, deletedAt: null },
-      select: { id: true, email: true, fullName: true, role: true, isActive: true, suspendedAt: true, lastLoginAt: true },
+      select: { id: true, email: true, fullName: true, role: true, isActive: true, suspendedAt: true, lastLoginAt: true, emailVerified: true, emailVerifiedAt: true },
       orderBy: { createdAt: 'asc' },
     })
     return {
@@ -39,7 +40,14 @@ export async function registerStaffRoutes(app: FastifyInstance): Promise<void> {
     if (body.role === 'OWNER' && principal.role !== 'OWNER') {
       throw new DomainError('FORBIDDEN', 'Solo OWNER puede crear otro OWNER', 403)
     }
-    await createStaff({ gymId: principal.gymId, ...body, role: body.role })
+    const staff = await createStaff({ gymId: principal.gymId, ...body, role: body.role })
+    await issueVerification({
+      kind: 'staff',
+      id: staff.id,
+      email: staff.email,
+      name: staff.fullName,
+      platform: 'web',
+    })
     await writeAudit({
       gymId: principal.gymId,
       actorId: principal.id,
@@ -49,7 +57,7 @@ export async function registerStaffRoutes(app: FastifyInstance): Promise<void> {
       after: { email: body.email, role: body.role },
     })
     reply.code(201)
-    return { ok: true, email: body.email }
+    return { ok: true, email: body.email, verificationSent: true }
   })
 
   app.patch('/api/staff/:id/role', { preHandler: [requireAuth, requirePermission('staff:manage')] }, async (req) => {
@@ -132,7 +140,7 @@ export async function registerStaffRoutes(app: FastifyInstance): Promise<void> {
     }
     const updated = await prisma.staffUser.findUnique({
       where: { id },
-      select: { id: true, email: true, fullName: true, role: true, isActive: true, suspendedAt: true, lastLoginAt: true },
+      select: { id: true, email: true, fullName: true, role: true, isActive: true, suspendedAt: true, lastLoginAt: true, emailVerified: true, emailVerifiedAt: true },
     })
     return updated
   })

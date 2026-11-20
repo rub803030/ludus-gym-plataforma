@@ -9,6 +9,7 @@ import { requireAuth, parsePagination } from '../../shared/http.js'
 import { decryptOptional, encryptOptional } from '../../shared/crypto.js'
 import { generateTemporaryPassword, hashPassword } from '../../shared/password.js'
 import { writeAudit } from '../../shared/audit.js'
+import { issueVerification } from '../auth/email-verification.js'
 
 const updateSchema = createMemberSchema.partial().extend({ status: z.enum(['ACTIVE', 'PENDING', 'EXPIRED', 'SUSPENDED']).optional() })
 
@@ -20,7 +21,7 @@ function parse<T>(schema: z.ZodType<T>, value: unknown): T {
 
 function toDto(member: {
   id: string; code: string; firstName: string; lastName: string; email: string; phone: string
-  documentNumber: string; status: string; joinedAt: Date; createdAt: Date
+  documentNumber: string; status: string; joinedAt: Date; createdAt: Date; emailVerified?: boolean
   memberships?: Array<{ status: string; endDate: Date | null; plan: { name: string } }>
 }) {
   const active = member.memberships?.find((m) => m.status === 'ACTIVE')
@@ -34,6 +35,7 @@ function toDto(member: {
     phone: member.phone,
     document: member.documentNumber,
     status: member.status,
+    emailVerified: member.emailVerified ?? false,
     joinedAt: member.joinedAt.toISOString(),
     createdAt: member.createdAt.toISOString(),
     membership: active
@@ -191,6 +193,13 @@ export async function registerMemberRoutes(app: FastifyInstance): Promise<void> 
         status: 'PENDING',
       },
     })
+    await issueVerification({
+      kind: 'member',
+      id: member.id,
+      email: member.email,
+      name: `${member.firstName} ${member.lastName}`,
+      platform: 'mobile',
+    })
     await writeAudit({
       gymId: principal.gymId,
       actorId: principal.id,
@@ -210,6 +219,7 @@ export async function registerMemberRoutes(app: FastifyInstance): Promise<void> 
     const principal = getPrincipal(req)
     const before = await prisma.member.findFirst({ where: { id, gymId: principal.gymId } })
     if (!before) throw new DomainError('NOT_FOUND', 'Socio no encontrado', 404)
+    const emailChanged = Boolean(body.email && body.email.toLowerCase() !== before.email.toLowerCase())
     const member = await prisma.member.update({
       where: { id },
       data: {
@@ -222,8 +232,20 @@ export async function registerMemberRoutes(app: FastifyInstance): Promise<void> 
         medicalNotesCipher: body.medicalNotes !== undefined ? encryptOptional(body.medicalNotes) : undefined,
         allergiesCipher: body.allergies !== undefined ? encryptOptional(body.allergies) : undefined,
         conditionsCipher: body.conditions !== undefined ? encryptOptional(body.conditions) : undefined,
+        ...(emailChanged
+          ? { emailVerified: false, emailVerifiedAt: null, verificationTokenHash: null, verificationExpiresAt: null }
+          : {}),
       },
     })
+    if (emailChanged) {
+      await issueVerification({
+        kind: 'member',
+        id: member.id,
+        email: member.email,
+        name: `${member.firstName} ${member.lastName}`,
+        platform: 'mobile',
+      })
+    }
     await writeAudit({
       gymId: principal.gymId,
       actorId: principal.id,

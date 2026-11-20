@@ -12,11 +12,17 @@ checks: list[str] = []
 required = [
     "apps/api/src/main.ts",
     "apps/api/prisma/schema.prisma",
+    "apps/api/src/modules/auth/email-verification.ts",
+    "apps/api/src/shared/email.ts",
     "apps/web/src/app/login/page.tsx",
+    "apps/web/src/app/verify-email/page.tsx",
+    "apps/web/src/features/auth/VerifyEmail/VerifyEmail.tsx",
     "apps/web/src/app/(console)/dashboard/page.tsx",
     "apps/mobile/app/src/main/java/com/ludus/gym/ui/screens/qr/qrScreens.kt",
+    "apps/mobile/app/src/main/java/com/ludus/gym/ui/screens/auth/authScreens.kt",
     "infra/supabase/migrations/0001_init.sql",
     "infra/supabase/migrations/0002_member_auth.sql",
+    "infra/supabase/migrations/0005_email_verification.sql",
 ]
 for rel in required:
     if (root / rel).exists():

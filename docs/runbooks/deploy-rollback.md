@@ -2,11 +2,12 @@
 
 ## Despliegue normal
 
-1. Verificar que CI esté en verde en `main` (typecheck, lint, tests, build, RBAC).
+1. Verificar que CI esté en verde en `master` (typecheck, lint, tests, build, RBAC).
 2. Crear tag `vX.Y.Z` → el workflow `release.yaml` publica la imagen en GHCR y el AAB firmado.
-3. Aplicar migraciones: `pnpm --filter @ludus/api db:migrate`.
-4. Desplegar API y Web con las mismas variables de entorno.
-5. Comprobar `/health`, login web, login móvil y un cobro de prueba.
+3. Aplicar migraciones SQL con `python scripts/apply-all-migrations.py` (usa `DIRECT_URL`; incluye `0005_email_verification.sql`).
+4. Configurar en Fly `RESEND_API_KEY`, `EMAIL_FROM`, `WEB_APP_URL`, `EMAIL_VERIFICATION_TTL_MINUTES` y `RESEND_TEST_RECIPIENT` (este último solo mientras se usen cuentas demo).
+5. Desplegar API (`fly deploy`) y Web (deploy automático de Vercel al hacer push).
+6. Comprobar `/health`, login web, login móvil, verificación de correo y un cobro de prueba.
 
 ## Rollback de aplicación
 

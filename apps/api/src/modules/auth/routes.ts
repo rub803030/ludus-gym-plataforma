@@ -1,11 +1,12 @@
 import { randomUUID } from 'node:crypto'
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
-import { mobileLoginSchema, webLoginSchema } from '@ludus/shared'
+import { mobileLoginSchema, resendVerificationSchema, verifyEmailSchema, webLoginSchema } from '@ludus/shared'
 import { DomainError } from '../../shared/errors/domain-error.js'
 import { requireAuth } from '../../shared/http.js'
 import { getCsrfSecret, signCsrf } from '../../shared/middleware/csrf.js'
 import { getPrincipal } from '../../shared/middleware/request-context.js'
+import { resendVerification, verifyEmailToken } from './email-verification.js'
 import { prisma } from '../../shared/database/prisma.js'
 import {
   loginMember,
@@ -56,6 +57,21 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
       refreshToken: result.refreshToken,
       principal: result.principal,
     }
+  })
+
+  app.post('/api/auth/verify-email', {
+    config: { rateLimit: { max: 10, timeWindow: '15 minutes' } },
+  }, async (req) => {
+    const { token } = parse(verifyEmailSchema, req.body)
+    const result = await verifyEmailToken(token)
+    return { ok: true, email: result.email, platform: result.platform, name: result.name }
+  })
+
+  app.post('/api/auth/verify-email/resend', {
+    config: { rateLimit: { max: 5, timeWindow: '15 minutes' } },
+  }, async (req) => {
+    const body = parse(resendVerificationSchema, req.body)
+    return resendVerification(body.email, body.platform ?? 'web')
   })
 
   app.post('/api/auth/refresh', async (req, reply) => {
