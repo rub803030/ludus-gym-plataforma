@@ -20,7 +20,16 @@ const envSchema = z.object({
   S3_BUCKET: z.string().default('ludus-gym'),
   S3_ACCESS_KEY: z.string().default('minioadmin'),
   S3_SECRET_KEY: z.string().default('minioadmin'),
-  RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
+  RATE_LIMIT_MAX: z.coerce.number().int().positive().default(120),
+}).superRefine((value, ctx) => {
+  if (value.NODE_ENV !== 'production') return
+  const origin = new URL(value.CORS_ORIGIN)
+  if (origin.protocol !== 'https:') {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['CORS_ORIGIN'], message: 'CORS_ORIGIN debe usar HTTPS en producción' })
+  }
+  if (['localhost', '127.0.0.1', '::1'].includes(origin.hostname)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['CORS_ORIGIN'], message: 'CORS_ORIGIN no puede ser localhost en producción' })
+  }
 })
 
 export type Env = z.infer<typeof envSchema>

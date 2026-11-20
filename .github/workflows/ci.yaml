@@ -41,6 +41,7 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test
+      - run: pnpm build
       - run: pnpm --filter @ludus/api db:migrate:test
       - name: Security integration tests
         run: pnpm --filter @ludus/api test:security
