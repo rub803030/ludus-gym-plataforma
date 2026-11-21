@@ -104,6 +104,7 @@ class AuthRepository(
     private fun normalizeToken(value: String): String {
         val trimmed = value.trim()
         val token = Regex("(?:[?&]token=)([^&#\\s]+)").find(trimmed)?.groupValues?.get(1) ?: trimmed
-        return URLDecoder.decode(token, Charsets.UTF_8)
+        @Suppress("DEPRECATION")
+        return URLDecoder.decode(token, "UTF-8")
     }
 }
