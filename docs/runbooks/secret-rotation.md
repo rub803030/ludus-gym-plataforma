@@ -22,3 +22,7 @@ node -e "const c=require('crypto'); console.log('JWT_ACCESS_SECRET='+c.randomByt
 ## Registro
 
 Anotar fecha, secretos rotados, responsable y resultado. Nunca pegar los valores en el ticket.
+
+| Fecha | Secretos rotados | Responsable | Resultado |
+| --- | --- | --- | --- |
+| 2026-11-21 | `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` (Fly + `.env.local`) | rub803030 | Reinicio rolling correcto; `/health` 200, login web OWNER 200, login MEMBER web 403, login STAFF móvil 401, QR en vivo y offline 200 |

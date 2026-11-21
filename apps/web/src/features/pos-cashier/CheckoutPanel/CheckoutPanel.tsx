@@ -187,7 +187,7 @@ export function CheckoutPanel() {
 
           <aside className="flex flex-col items-center justify-start border border-hairline bg-surface p-8 text-center">
             <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted">Código de comprobante</p>
-            <div className="mt-6 border border-hairline bg-canvas p-4">
+            <div className="mt-6 border border-hairline bg-white p-4">
               <QrCode value={receipt.receiptCode} size={148} />
             </div>
             <p className="tabular mt-5 text-sm font-bold tracking-[0.14em] text-ink">{receipt.receiptCode}</p>
