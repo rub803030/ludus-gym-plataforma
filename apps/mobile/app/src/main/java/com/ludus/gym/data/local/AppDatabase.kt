@@ -50,11 +50,9 @@ data class WorkoutLogEntity(
 data class QrCredentialEntity(
     @PrimaryKey val id: String = "current",
     val memberId: String,
-    val bucket: Long,
-    val expiresAt: Long,
-    val signature: String,
+    val expiresAtMillis: Long,
     val raw: String,
-    val createdAt: Long,
+    val cachedAt: Long,
 )
 
 @Entity(tableName = "pending_sync")
@@ -147,7 +145,7 @@ interface LudusDao {
         PendingSyncEntity::class,
         AccessEventEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {

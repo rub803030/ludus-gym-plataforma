@@ -22,6 +22,12 @@ val keyAliasProp = signingProp("LUDUS_RELEASE_KEY_ALIAS")
 val keyPasswordProp = signingProp("LUDUS_RELEASE_KEY_PASSWORD")
 val hasReleaseSigning = listOf(storeFileProp, storePasswordProp, keyAliasProp, keyPasswordProp).all { !it.isNullOrBlank() }
 
+// La app apunta a la API pública desplegada. Para desarrollo local se puede
+// sobrescribir con LUDUS_API_BASE_URL en local.properties (no versionado).
+val apiBaseUrl = (signingProp("LUDUS_API_BASE_URL")
+  ?.takeIf { it.isNotBlank() }
+  ?: "https://ludus-gym-plataforma-api.fly.dev").trimEnd('/') + "/"
+
 android {
   namespace = "com.ludus.gym"
   compileSdk = 35
@@ -33,6 +39,7 @@ android {
     versionCode = 1
     versionName = "0.1.0"
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
   }
 
   signingConfigs {
@@ -67,7 +74,7 @@ android {
 
   kotlinOptions { jvmTarget = "17" }
 
-  buildFeatures { compose = true }
+  buildFeatures { compose = true; buildConfig = true }
 }
 
 dependencies {
