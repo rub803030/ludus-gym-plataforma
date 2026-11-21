@@ -1,17 +1,7 @@
 package com.ludus.gym.ui.navigation
 
 import android.net.Uri
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -22,9 +12,19 @@ import com.ludus.gym.LudusApplication
 import com.ludus.gym.ui.screens.auth.LoginScreen
 import com.ludus.gym.ui.screens.auth.LoginViewModel
 import com.ludus.gym.ui.screens.auth.VerifyEmailScreen
+import com.ludus.gym.ui.screens.bookings.BookingViewModel
+import com.ludus.gym.ui.screens.bookings.BookingsScreen
+import com.ludus.gym.ui.screens.home.HomeScreen
+import com.ludus.gym.ui.screens.home.HomeViewModel
+import com.ludus.gym.ui.screens.nutrition.NutritionScreen
+import com.ludus.gym.ui.screens.nutrition.NutritionViewModel
 import com.ludus.gym.ui.screens.qr.QrScreen
 import com.ludus.gym.ui.screens.qr.QrViewModel
+import com.ludus.gym.ui.screens.workout.WorkoutScreen
+import com.ludus.gym.ui.screens.workout.WorkoutViewModel
 import com.ludus.gym.ui.viewModelFactory
+
+private const val HOME_ROUTE = "home/{memberId}?name={name}"
 
 @Composable
 fun LudusNavHost(deepLinkToken: String? = null) {
@@ -50,7 +50,7 @@ fun LudusNavHost(deepLinkToken: String? = null) {
             LoginScreen(
                 viewModel = viewModel,
                 onLoggedIn = { member ->
-                    navController.navigate("home/${Uri.encode(member.name)}") {
+                    navController.navigate("home/${Uri.encode(member.id)}?name=${Uri.encode(member.name)}") {
                         popUpTo("login") { inclusive = true }
                     }
                 },
@@ -83,14 +83,34 @@ fun LudusNavHost(deepLinkToken: String? = null) {
         }
 
         composable(
-            route = "home/{name}",
-            arguments = listOf(navArgument("name") { type = NavType.StringType }),
+            route = HOME_ROUTE,
+            arguments = listOf(
+                navArgument("memberId") { type = NavType.StringType },
+                navArgument("name") {
+                    type = NavType.StringType
+                    defaultValue = ""
+                },
+            ),
         ) { backStackEntry ->
-            val name = backStackEntry.arguments?.getString("name").orEmpty()
+            val factory = viewModelFactory {
+                HomeViewModel(
+                    observeProfile = container.observeProfileUseCase,
+                    getCachedProfile = container.getCachedProfileUseCase,
+                    getProfile = container.getProfileUseCase,
+                    getOccupancy = container.getOccupancyUseCase,
+                    logout = container.logoutUseCase,
+                    memberId = backStackEntry.arguments?.getString("memberId"),
+                )
+            }
+            val viewModel: HomeViewModel = viewModel(factory = factory)
             HomeScreen(
-                name = name,
+                viewModel = viewModel,
+                fallbackName = backStackEntry.arguments?.getString("name").orEmpty(),
                 onQr = { navController.navigate("qr") },
-                onExit = { navController.navigate("login") { popUpTo("home/{name}") { inclusive = true } } },
+                onWorkout = { navController.navigate("workout") },
+                onNutrition = { navController.navigate("nutrition") },
+                onBookings = { navController.navigate("bookings") },
+                onExit = { navController.navigate("login") { popUpTo(HOME_ROUTE) { inclusive = true } } },
             )
         }
 
@@ -105,22 +125,44 @@ fun LudusNavHost(deepLinkToken: String? = null) {
             val viewModel: QrViewModel = viewModel(factory = factory)
             QrScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
         }
-    }
-}
 
-@Composable
-private fun HomeScreen(name: String, onQr: () -> Unit, onExit: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text("Ludus.", style = MaterialTheme.typography.displaySmall, color = MaterialTheme.colorScheme.primary)
-        Text("Sesión iniciada", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(top = 16.dp))
-        Text("Bienvenido, $name", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(top = 8.dp))
-        Button(onClick = onQr, modifier = Modifier.padding(top = 24.dp)) { Text("Mi pase QR") }
-        Button(onClick = onExit, modifier = Modifier.padding(top = 12.dp)) { Text("Cerrar sesión") }
+        composable("workout") {
+            val factory = viewModelFactory {
+                WorkoutViewModel(
+                    observeRoutines = container.observeRoutinesUseCase,
+                    observePending = container.observePendingWorkoutsUseCase,
+                    refreshRoutines = container.refreshRoutinesUseCase,
+                    logWorkout = container.logWorkoutUseCase,
+                )
+            }
+            val viewModel: WorkoutViewModel = viewModel(factory = factory)
+            WorkoutScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+        }
+
+        composable("nutrition") {
+            val factory = viewModelFactory {
+                NutritionViewModel(
+                    observeNutrition = container.observeNutritionUseCase,
+                    refreshNutrition = container.refreshNutritionUseCase,
+                )
+            }
+            val viewModel: NutritionViewModel = viewModel(factory = factory)
+            NutritionScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+        }
+
+        composable("bookings") {
+            val factory = viewModelFactory {
+                BookingViewModel(
+                    observeClasses = container.observeClassesUseCase,
+                    observeReceipts = container.observeReceiptsUseCase,
+                    refreshClasses = container.refreshClassesUseCase,
+                    refreshReceipts = container.refreshReceiptsUseCase,
+                    bookClass = container.bookClassUseCase,
+                    cancelBooking = container.cancelBookingUseCase,
+                )
+            }
+            val viewModel: BookingViewModel = viewModel(factory = factory)
+            BookingsScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+        }
     }
 }

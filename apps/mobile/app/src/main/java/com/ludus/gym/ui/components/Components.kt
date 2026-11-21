@@ -22,10 +22,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -233,6 +236,43 @@ fun EmptyState(
         if (actionLabel != null && onAction != null) {
             Spacer(Modifier.height(4.dp))
             LudusButton(text = actionLabel, onClick = onAction, variant = LudusButtonVariant.SECONDARY)
+        }
+    }
+}
+
+/** Cabecera común de las pantallas del socio: título, subida y acción opcional. */
+@Composable
+fun LudusScreenHeader(
+    title: String,
+    subtitle: String? = null,
+    onBack: (() -> Unit)? = null,
+    action: String? = null,
+    onAction: (() -> Unit)? = null,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (onBack != null) {
+            IconButton(onClick = onBack, modifier = Modifier.size(44.dp)) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver", tint = Volt)
+            }
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = title, style = MaterialTheme.typography.headlineSmall, color = Ink)
+            if (subtitle != null) {
+                Text(text = subtitle, style = MaterialTheme.typography.bodySmall, color = Muted)
+            }
+        }
+        if (action != null && onAction != null) {
+            Text(
+                text = action,
+                color = Volt,
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier
+                    .clickable(onClick = onAction)
+                    .padding(8.dp),
+            )
         }
     }
 }
