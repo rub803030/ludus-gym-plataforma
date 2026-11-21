@@ -10,6 +10,16 @@ import { Button } from '@/ui/primitives/Button'
 import { Skeleton } from '@/ui/primitives/Skeleton'
 import { StatusBadge } from '@/ui/primitives/StatusBadge'
 
+/** Codifica un payload JSON pegado a mano en el mismo base64url que usa la API. */
+function toBase64Url(value: string): string {
+  const bytes = new TextEncoder().encode(value)
+  let binary = ''
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte)
+  })
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
+
 const RESULT_STYLE: Record<Exclude<QrResultStatus, 'idle'>, { title: string; border: string; text: string }> = {
   valid: { title: 'Acceso concedido', border: 'border-emerald', text: 'text-emerald' },
   invalid: { title: 'Código inválido', border: 'border-ignition', text: 'text-ignition' },
@@ -112,15 +122,21 @@ export function OccupancyBoard() {
     setVerifying(true)
     setActionError(null)
     try {
-      let payload: Record<string, unknown>
+      let token: string
       try {
         const parsed: unknown = JSON.parse(qrText)
-        if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) throw new Error('Formato inválido')
-        payload = parsed as Record<string, unknown>
+        if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+          const record = parsed as Record<string, unknown>
+          token = typeof record['token'] === 'string'
+            ? record['token'].trim()
+            : toBase64Url(JSON.stringify(record))
+        } else {
+          token = qrText.trim()
+        }
       } catch {
-        payload = { code: qrText.trim() }
+        token = qrText.trim()
       }
-      const verification = await api.access.verifyQr(payload)
+      const verification = await api.access.verifyQr({ token, deviceId: 'ludus-web-reader' })
       registerEvent(verification.status, verification.message, verification.event.memberName, verification.message)
     } catch (verifyError) {
       const message = getErrorMessage(verifyError)
@@ -217,7 +233,7 @@ export function OccupancyBoard() {
               value={qrText}
               onChange={(event) => setQrText(event.target.value)}
               rows={4}
-              placeholder='{"memberId":"…","bucket":42,"nonce":"…","signature":"…"}'
+              placeholder='Pega el token base64url del QR o el JSON del pase'
               className="w-full border border-hairline bg-surface p-4 font-mono text-xs leading-relaxed text-ink outline-none transition-colors duration-300 ease-kinetic placeholder:text-muted/50 focus:border-volt"
             />
             <div className="mt-4">
