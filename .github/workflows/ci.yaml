@@ -25,6 +25,7 @@ jobs:
         ports: ['6379:6379']
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ludus_gym_test
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/ludus_gym_test
       REDIS_URL: redis://localhost:6379
       JWT_ACCESS_SECRET: test-access-secret-at-least-32-bytes
       JWT_REFRESH_SECRET: test-refresh-secret-at-least-32-bytes
