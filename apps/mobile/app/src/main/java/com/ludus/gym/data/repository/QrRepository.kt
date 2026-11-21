@@ -24,64 +24,66 @@ class QrRepository(
     private val _ticket = MutableStateFlow<QrTicket?>(null)
     val ticket: StateFlow<QrTicket?> = _ticket.asStateFlow()
 
-    /** Pide el token rotante al servidor; si no hay red usa la credencial offline. */
+    /**
+     * Con red: pide un pase nuevo y guarda la credencial offline firmada por
+     * la API. Sin red: reutiliza esa credencial guardada, que el lector sí
+     * acepta porque lleva la firma del servidor.
+     */
     suspend fun refresh(): Result<QrTicket> {
-        val nowMillis = System.currentTimeMillis()
-        val dto: QrTokenDto? = if (network.isOnline()) runCatching { api.qrToken() }.getOrNull() else null
-        val value = dto?.value()
-
-        if (!value.isNullOrBlank()) {
-            val result = QrTicket(
-                token = value,
-                validUntilMillis = expiryMillis(dto, nowMillis),
-                offline = false,
-                serverExpiresAt = dto.expiresAt,
-            )
-            _ticket.value = result
-            return Result.success(result)
+        val now = System.currentTimeMillis()
+        val dto = if (network.isOnline()) runCatching { api.qrToken() }.getOrNull() else null
+        if (dto != null) {
+            val value = dto.value()
+            if (!value.isNullOrBlank()) {
+                dto.offlineCredential?.let { cacheOfflineCredential(it, now) }
+                val live = QrTicket(
+                    token = value,
+                    validUntilMillis = expiryMillis(dto, now),
+                    offline = false,
+                    serverExpiresAt = dto.expiresAt,
+                )
+                _ticket.value = live
+                return Result.success(live)
+            }
         }
 
-        val offline = offlineCredential()
-        val result = QrTicket(
-            token = offline.raw,
-            validUntilMillis = offline.expiresAt * 1000L,
+        val cached = dao.qrCredential()?.takeIf {
+            it.expiresAtMillis > now && QrPayload.isOfflineCredential(it.raw, now)
+        }
+        if (cached == null) {
+            _ticket.value = null
+            return Result.failure(IllegalStateException("Sin conexión y sin pase offline guardado"))
+        }
+        val offline = QrTicket(
+            token = cached.raw,
+            validUntilMillis = cached.expiresAtMillis,
             offline = true,
         )
-        _ticket.value = result
-        return Result.success(result)
+        _ticket.value = offline
+        return Result.success(offline)
     }
 
     fun current(): QrTicket? = _ticket.value
 
-    /** Valida únicamente credenciales offline (formato LUDUS1 + firma + ventana). */
-    fun verifyLocally(payload: String): Boolean {
-        val parsed = QrPayload.parse(payload) ?: return false
-        return QrPayload.isValidAt(
-            parsed = parsed,
-            nowSeconds = System.currentTimeMillis() / 1000L,
-            secret = QrPayload.DEV_SECRET,
-            verifySignature = true,
-        )
+    /** Comprobación local solo para la interfaz; el lector vuelve a verificar. */
+    fun verifyLocally(payload: String): Boolean = QrPayload.isOfflineCredential(payload)
+
+    suspend fun offlineCredential(): QrCredentialEntity? {
+        val now = System.currentTimeMillis()
+        dao.qrCredential()?.takeIf { QrPayload.isOfflineCredential(it.raw, now) }?.let { return it }
+        val dto = if (network.isOnline()) runCatching { api.qrToken() }.getOrNull() else null
+        val raw = dto?.offlineCredential ?: return null
+        return cacheOfflineCredential(raw, now)
     }
 
-    suspend fun offlineCredential(): QrCredentialEntity {
-        val now = System.currentTimeMillis() / 1000L
-        val cached = dao.qrCredential()
-        if (cached != null && cached.expiresAt > now + 5) {
-            val parsed = QrPayload.parse(cached.raw)
-            if (parsed != null && QrPayload.verify(parsed)) return cached
-        }
-        val memberId = tokens.memberId()?.takeIf { it.isNotBlank() } ?: "member-demo"
-        val expiresAt = now + QrPayload.OFFLINE_VALID_SECONDS
-        val raw = QrPayload.build(memberId, expiresAt, nowSeconds = now)
-        val parsed = requireNotNull(QrPayload.parse(raw))
+    private suspend fun cacheOfflineCredential(raw: String, nowMillis: Long): QrCredentialEntity? {
+        val parsed = QrPayload.parse(raw) ?: return null
+        if (parsed.kind != "offline" || parsed.expiresAtMillis <= nowMillis) return null
         val credential = QrCredentialEntity(
-            memberId = memberId,
-            bucket = parsed.bucket,
-            expiresAt = parsed.expiresAt,
-            signature = parsed.signature,
+            memberId = parsed.memberId.ifBlank { tokens.memberId().orEmpty() },
+            expiresAtMillis = parsed.expiresAtMillis,
             raw = raw,
-            createdAt = now,
+            cachedAt = nowMillis,
         )
         dao.saveQrCredential(credential)
         return credential
