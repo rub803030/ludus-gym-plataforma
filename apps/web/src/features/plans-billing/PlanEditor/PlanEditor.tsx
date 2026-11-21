@@ -162,8 +162,8 @@ export function PlanEditor() {
         />
         <EmptyState
           eyebrow="Acceso restringido"
-          title="Solo OWNER"
-          description="Tu perfil puede consultar planes, pero no crear, editar ni eliminarlos. Solicita permisos a un OWNER."
+          title="Solo propietario"
+          description="Tu perfil puede consultar planes, pero no crear, editar ni eliminarlos. Solicita permisos al propietario."
         />
       </>
     )

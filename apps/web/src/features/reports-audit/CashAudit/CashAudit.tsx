@@ -105,7 +105,7 @@ export function CashAudit() {
         />
         <EmptyState
           eyebrow="Acceso restringido"
-          title="Solo OWNER"
+          title="Solo propietario"
           description="Los reportes financieros y la bitácora de auditoría están disponibles únicamente para el propietario de la cuenta."
         />
       </>
@@ -182,7 +182,7 @@ export function CashAudit() {
       render: (log) => (
         <StatusBadge
           status={log.severity}
-          label={log.severity === 'critical' ? 'Crítico' : log.severity === 'warning' ? 'Atención' : 'Info'}
+          label={log.severity === 'critical' ? 'Crítico' : log.severity === 'warning' ? 'Atención' : 'Información'}
         />
       ),
     },

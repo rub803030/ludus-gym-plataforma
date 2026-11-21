@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { api, getErrorMessage, hydrateSession } from '@/lib/api-client'
-import { formatDateTime } from '@/lib/format'
+import { formatDateTime, roleLabel } from '@/lib/format'
 import { useSession } from '@/lib/use-session'
 import type { Role, StaffUser } from '@/types'
 import { EmptyState } from '@/ui/layout/EmptyState'
@@ -13,9 +13,9 @@ import { DenseTable, type DenseColumn } from '@/ui/primitives/DenseTable'
 import { StatusBadge } from '@/ui/primitives/StatusBadge'
 
 const ASSIGNABLE_ROLES: Array<{ role: Role; label: string }> = [
-  { role: 'STAFF', label: 'STAFF' },
-  { role: 'MANAGER', label: 'MANAGER' },
-  { role: 'OWNER', label: 'OWNER' },
+  { role: 'STAFF', label: roleLabel('STAFF') },
+  { role: 'MANAGER', label: roleLabel('MANAGER') },
+  { role: 'OWNER', label: roleLabel('OWNER') },
 ]
 
 const PERMISSIONS: readonly string[] = [
@@ -97,7 +97,7 @@ export function LicenseManager() {
       setStaff((current) => current.map((user) => (user.id === updated.id ? updated : user)))
       setNotice(
         pending.action === 'role'
-          ? `Perfil actualizado a ${pending.role ?? updated.role}.`
+          ? `Perfil actualizado a ${roleLabel(pending.role ?? updated.role)}.`
           : pending.action === 'suspend'
             ? 'Licencia suspendida. El usuario no podrá iniciar sesión.'
             : 'Licencia reactivada. El usuario podrá iniciar sesión.'
@@ -134,7 +134,7 @@ export function LicenseManager() {
         />
         <EmptyState
           eyebrow="Acceso restringido"
-          title="Solo OWNER"
+          title="Solo propietario"
           description="Esta sección está reservada al propietario de la cuenta. Tu perfil actual no puede modificar licencias ni permisos."
         />
       </>
@@ -243,7 +243,7 @@ export function LicenseManager() {
         <div className="grid gap-px border border-hairline bg-[var(--color-hairline)] sm:grid-cols-3">
           {ASSIGNABLE_ROLES.map((option) => (
             <div key={option.role} className="bg-canvas p-6">
-              <p className="font-display text-sm font-extrabold tracking-[0.1em] text-volt">{option.role}</p>
+              <p className="font-display text-sm font-extrabold tracking-[0.1em] text-volt">{option.label}</p>
               <ul className="mt-5 space-y-2">
                 {PERMISSIONS.map((permission) => {
                   const allowed = MATRIX[option.role].includes(permission)
@@ -274,7 +274,7 @@ export function LicenseManager() {
         }
         description={
           pending?.action === 'role'
-            ? `El perfil de ${pending.user.name} cambiará a ${pending.role ?? ''}. El cambio se aplica en su próxima petición.`
+            ? `El perfil de ${pending.user.name} cambiará a ${pending.role ? roleLabel(pending.role) : ''}. El cambio se aplica en su próxima petición.`
             : pending?.action === 'suspend'
               ? `${pending?.user.name ?? 'Este usuario'} perderá el acceso a la consola de inmediato.`
               : `${pending?.user.name ?? 'Este usuario'} volverá a tener acceso a la consola.`
