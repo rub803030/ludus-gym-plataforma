@@ -4,10 +4,14 @@
 --   rubnlira2+manager@gmail.com / Manager2026!
 --   rubnlira2+staff@gmail.com / Staff2026!
 --   rubnlira2+socio@gmail.com / Ludus2026!
+--   alancitomukul@outlook.com / AlanOwner2026! (OWNER, coautor)
+--   alecanche328@gmail.com / AlejandroOwner2026! (OWNER, coautor)
 
 INSERT INTO staff_users (id, gym_id, email, password_hash, full_name, role, is_active) VALUES ('00000000-0000-7000-8000-000000000101', '00000000-0000-7000-8000-000000000001', 'rubnlira2@gmail.com', 'scrypt$fa190ed7bf71c499178977a82d51ca7b$88d8f08dc29aee7b1b1edc44f1bc1a6d9efa4c0d59b4e3e601df737a1483245951fe95cb4406013bfa18bb521593d005139941f5bbbe066e19bc36c32f2e40a5', 'Ricardo Dueño', 'OWNER', true) ON CONFLICT (id) DO NOTHING;
 INSERT INTO staff_users (id, gym_id, email, password_hash, full_name, role, is_active) VALUES ('00000000-0000-7000-8000-000000000102', '00000000-0000-7000-8000-000000000001', 'rubnlira2+manager@gmail.com', 'scrypt$f05ad21198f2f4e5c6da0d97a049f584$65e38f358f93caab7813780f03564cc73e561524b6412c63a68afcfe4e8f451d02a835f7f0514e38a695af9e34f4d4efacd389e5d62e3dbf5feb1f1b6d5e97c4', 'Mariana Encargado', 'MANAGER', true) ON CONFLICT (id) DO NOTHING;
 INSERT INTO staff_users (id, gym_id, email, password_hash, full_name, role, is_active) VALUES ('00000000-0000-7000-8000-000000000103', '00000000-0000-7000-8000-000000000001', 'rubnlira2+staff@gmail.com', 'scrypt$b8aea7eefe60a05ab6c0f3b29a955f4b$a44ebcac0df7e211bdf398179fcbe8a76378bbb6817cec56131353d1eef24a214d55dd6fc169c009649e1055d7e52df4f85e17bc2d3897f9fac4021940c35358', 'Sofía Recepción', 'STAFF', true) ON CONFLICT (id) DO NOTHING;
+INSERT INTO staff_users (id, gym_id, email, password_hash, full_name, role, is_active) VALUES ('00000000-0000-7000-8000-000000000104', '00000000-0000-7000-8000-000000000001', 'alancitomukul@outlook.com', 'scrypt$0d74bb88b69cff94c0e376e6dba47e84$f67304e77bc8a8c4124136fb631bf190d338ae109e1dd1ea4d5b1a919506f7c3dddda8f02d8fc5ad92f2f7c50cbcd7d0a2209cbd2e5d7d159751467cd8648506', 'Alan-2023Dts', 'OWNER', true) ON CONFLICT (id) DO NOTHING;
+INSERT INTO staff_users (id, gym_id, email, password_hash, full_name, role, is_active) VALUES ('00000000-0000-7000-8000-000000000105', '00000000-0000-7000-8000-000000000001', 'alecanche328@gmail.com', 'scrypt$ab9746912a0311d8a6d271253ea350a0$c3de152d50437a2e8cfe8dbed5150ad24c3644ecd84e11c46136a10989d55d2f2b39236e5f6460d5347f46f5c5ad84636ff961b5b11ac6c7333df1139fa67675', 'alecanche04-cyber', 'OWNER', true) ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO members (id, gym_id, code, first_name, last_name, email, phone, document_type, document_number, birth_date, status, joined_at) VALUES ('00000000-0000-7000-8000-000000000201', '00000000-0000-7000-8000-000000000001', 'LUD-000001', 'Ana', 'Martínez', 'rubnlira2+socio@gmail.com', '+52 55 1234 5678', 'INE', 'MART890123ABC', '1998-03-12', 'ACTIVE', now()) ON CONFLICT (id) DO NOTHING;
 
