@@ -64,7 +64,7 @@ export default function SettingsPage() {
             Apariencia
           </h2>
           <p className="text-sm leading-relaxed text-muted">
-            Tema Kinetic Obsidiana: superficies tonales, divisores de un pixel y acentos de alto contraste.
+            Estilo Kinetic Obsidiana: superficies tonales, divisores de un pixel y acentos de alto contraste.
           </p>
           <div className="mt-6 grid grid-cols-2 gap-px border border-hairline bg-[var(--color-hairline)]">
             {(['dark', 'light'] as const).map((option) => (
@@ -81,7 +81,7 @@ export default function SettingsPage() {
                 ].join(' ')}
               >
                 <ThemeIcon theme={option} />
-                {option === 'dark' ? 'Obsidiana' : 'Clara'}
+                {option === 'dark' ? 'Tema oscuro' : 'Tema claro'}
               </button>
             ))}
           </div>
