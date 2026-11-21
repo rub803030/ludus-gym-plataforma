@@ -35,8 +35,9 @@ export function CheckoutPanel() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [receipt, setReceipt] = useState<PaymentView | null>(null)
+  const [idempotencyReady, setIdempotencyReady] = useState(false)
   const lockRef = useRef(false)
-  const idempotencyRef = useRef(createIdempotencyKey())
+  const idempotencyRef = useRef<string | null>(null)
 
   const load = useCallback(async () => {
     setLoadingData(true)
@@ -53,6 +54,8 @@ export function CheckoutPanel() {
 
   useEffect(() => {
     void load()
+    idempotencyRef.current = createIdempotencyKey()
+    setIdempotencyReady(true)
   }, [load])
 
   const filteredMembers = useMemo(() => {
@@ -88,7 +91,7 @@ export function CheckoutPanel() {
 
   async function handleCharge(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (lockRef.current || submitting) return
+    if (lockRef.current || submitting || !idempotencyReady || !idempotencyRef.current) return
     if (!memberId || !planId || amount <= 0) {
       setError('Selecciona un socio, un plan y captura un monto mayor a cero.')
       return
@@ -352,9 +355,9 @@ export function CheckoutPanel() {
               </span>
             </div>
             <p className="tabular mt-3 text-[10px] uppercase tracking-[0.12em] text-muted">
-              Llave de idempotencia · {idempotencyRef.current.slice(0, 18)}…
+              Llave de idempotencia · {idempotencyRef.current?.slice(0, 18) ?? '—'}…
             </p>
-            <Button type="submit" fullWidth loading={submitting} className="mt-7" disabled={!memberId || !planId || amount <= 0}>
+            <Button type="submit" fullWidth loading={submitting} className="mt-7" disabled={!idempotencyReady || !memberId || !planId || amount <= 0}>
               {submitting ? 'Procesando cargo' : 'Confirmar cobro'}
             </Button>
             <p className="mt-4 text-center text-[11px] leading-relaxed text-muted">
