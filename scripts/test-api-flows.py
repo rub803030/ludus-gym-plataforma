@@ -47,7 +47,7 @@ print("== Health ==")
 check("health", "GET", "/health")
 
 print("\n== Verificación de correo ==")
-OWNER_EMAIL = "rubnlira2+owner@gmail.com"
+OWNER_EMAIL = "rubnlira2@gmail.com"
 SOCIO_EMAIL = "rubnlira2+socio@gmail.com"
 status, blocked, _ = call("POST", "/api/auth/web/login", {"email": OWNER_EMAIL, "password": "Owner2026!", "platform": "web"})
 code = blocked.get("error", {}).get("code") if isinstance(blocked, dict) else None

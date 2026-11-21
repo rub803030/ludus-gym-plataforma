@@ -22,7 +22,7 @@ def scrypt_hash(password: str) -> str:
 
 
 staff = [
-    ("00000000-0000-7000-8000-000000000101", "rubnlira2+owner@gmail.com", "Owner2026!", "Ricardo Dueño", "OWNER"),
+    ("00000000-0000-7000-8000-000000000101", "rubnlira2@gmail.com", "Owner2026!", "Ricardo Dueño", "OWNER"),
     ("00000000-0000-7000-8000-000000000102", "rubnlira2+manager@gmail.com", "Manager2026!", "Mariana Encargado", "MANAGER"),
     ("00000000-0000-7000-8000-000000000103", "rubnlira2+staff@gmail.com", "Staff2026!", "Sofía Recepción", "STAFF"),
 ]
@@ -32,7 +32,7 @@ member_hash = scrypt_hash("Ludus2026!")
 
 lines = [
     "-- Datos demo de Ludus GYM (SOLO desarrollo).",
-    "-- Correos: rubnlira2+owner/+manager/+staff/+socio@gmail.com (requieren verificación).",
+    "-- Correos: rubnlira2 (owner), rubnlira2+manager/+staff/+socio@gmail.com (requieren verificación).",
     "-- Passwords: Owner2026!, Manager2026!, Staff2026!, Ludus2026!",
     "",
 ]
