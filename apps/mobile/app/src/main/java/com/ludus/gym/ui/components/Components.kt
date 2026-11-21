@@ -127,7 +127,7 @@ fun LudusCard(
     if (onClick != null) {
         cardModifier = cardModifier.clickable(onClick = onClick)
     }
-    Box(modifier = cardModifier.padding(18.dp)) {
+    Column(modifier = cardModifier.padding(18.dp)) {
         content()
     }
 }
