@@ -163,7 +163,7 @@ export function LoginForm() {
               Confirma tu dirección antes de entrar. Te enviamos el enlace a <strong>{email.trim()}</strong>.
             </p>
             {verificationSent ? (
-              <p className="text-xs text-muted">Correo reenviado. Revisa también tu carpeta de spam.</p>
+              <p className="text-xs text-muted">Correo reenviado. Revisa también tu carpeta de correo no deseado.</p>
             ) : null}
             <div className="flex flex-wrap gap-2">
               <Button variant="ghost" loading={resending} onClick={handleResend}>

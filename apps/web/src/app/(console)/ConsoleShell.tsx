@@ -11,9 +11,11 @@ import {
   SESSION_EXPIRED_EVENT,
   setSession,
 } from '@/lib/api-client'
+import { roleLabel } from '@/lib/format'
 import { useSession } from '@/lib/use-session'
 import type { Principal } from '@/types'
 import { Button } from '@/ui/primitives/Button'
+import { ThemeIcon } from '@/ui/primitives/ThemeIcon'
 
 interface NavItem {
   href: string
@@ -232,16 +234,17 @@ export function ConsoleShell({ principal, sessionError, children }: ConsoleShell
           <div className="flex shrink-0 items-center gap-3 md:gap-5">
             {role ? (
               <span className="hidden border border-hairline px-3 py-2 text-[10px] font-bold uppercase tracking-[0.16em] text-volt sm:inline-block">
-                {role}
+                {roleLabel(role)}
               </span>
             ) : null}
             <button
               type="button"
               onClick={toggleTheme}
               aria-label={`Cambiar a tema ${theme === 'dark' ? 'claro' : 'oscuro'}`}
-              className="min-h-12 border border-hairline px-3 text-[10px] font-bold uppercase tracking-[0.12em] text-muted transition-colors duration-300 ease-kinetic hover:border-volt/50 hover:text-volt"
+              title={theme === 'dark' ? 'Tema oscuro' : 'Tema claro'}
+              className="flex h-12 w-12 items-center justify-center border border-hairline text-muted transition-colors duration-300 ease-kinetic hover:border-volt/50 hover:text-volt"
             >
-              {theme === 'dark' ? 'Obsidiana' : 'Clara'}
+              <ThemeIcon theme={theme} />
             </button>
             <button
               type="button"
@@ -267,7 +270,7 @@ export function ConsoleShell({ principal, sessionError, children }: ConsoleShell
 
         <footer className="flex flex-col gap-2 border-t border-hairline px-5 py-6 text-[10px] uppercase tracking-[0.14em] text-muted md:flex-row md:items-center md:justify-between md:px-9">
           <span>Ludus GYM · Consola interna</span>
-          <span className="tabular">Sesión auditada · {role ?? 'perfil no verificado'}</span>
+          <span className="tabular">Sesión auditada · {roleLabel(role)}</span>
         </footer>
       </div>
 

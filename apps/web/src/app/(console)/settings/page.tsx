@@ -3,9 +3,11 @@
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { api, clearSession, hydrateSession } from '@/lib/api-client'
+import { roleLabel } from '@/lib/format'
 import { useSession } from '@/lib/use-session'
 import { PageHeader } from '@/ui/layout/PageHeader'
 import { Button } from '@/ui/primitives/Button'
+import { ThemeIcon } from '@/ui/primitives/ThemeIcon'
 
 export default function SettingsPage() {
   const router = useRouter()
@@ -74,10 +76,11 @@ export default function SettingsPage() {
                 }}
                 aria-pressed={theme === option}
                 className={[
-                  'min-h-12 px-4 text-[11px] font-bold uppercase tracking-[0.14em] transition-colors duration-300 ease-kinetic',
+                  'flex min-h-14 items-center justify-center gap-3 px-4 text-[11px] font-bold uppercase tracking-[0.14em] transition-colors duration-300 ease-kinetic',
                   theme === option ? 'bg-volt text-canvas' : 'bg-surface text-muted hover:text-ink',
                 ].join(' ')}
               >
+                <ThemeIcon theme={option} />
                 {option === 'dark' ? 'Obsidiana' : 'Clara'}
               </button>
             ))}
@@ -91,7 +94,7 @@ export default function SettingsPage() {
           <dl className="grid grid-cols-1 gap-y-5 sm:grid-cols-2">
             <div>
               <dt className="text-[10px] uppercase tracking-[0.14em] text-muted">Perfil</dt>
-              <dd className="mt-2 text-sm font-bold text-volt">{principal?.role ?? 'No verificado'}</dd>
+              <dd className="mt-2 text-sm font-bold text-volt">{roleLabel(principal?.role)}</dd>
             </div>
             <div>
               <dt className="text-[10px] uppercase tracking-[0.14em] text-muted">Gimnasio</dt>

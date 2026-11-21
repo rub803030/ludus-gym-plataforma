@@ -66,7 +66,7 @@ export function VerifyEmail() {
       await api.auth.resendVerification(normalized, 'web')
       setSent(true)
       setState('idle')
-      setMessage('Si la cuenta existe y aún no está verificada, enviamos un nuevo enlace. Revisa tu bandeja y spam.')
+      setMessage('Si la cuenta existe y aún no está verificada, enviamos un nuevo enlace. Revisa tu bandeja y el correo no deseado.')
     } catch (error) {
       setState('error')
       setMessage(getErrorMessage(error))
