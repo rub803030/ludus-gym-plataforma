@@ -1,3 +1,5 @@
+import type { Role } from '@/types'
+
 const currencyFormatter = new Intl.NumberFormat('es-MX', {
   style: 'currency',
   currency: 'MXN',
@@ -56,4 +58,16 @@ export function initials(name: string): string {
 export function relativeDayLabel(days: number): string {
   if (days === 0) return 'hoy'
   return days === 1 ? '1 día' : `${days} días`
+}
+
+const ROLE_LABELS: Record<Role, string> = {
+  OWNER: 'Propietario',
+  MANAGER: 'Encargado',
+  STAFF: 'Equipo',
+  MEMBER: 'Socio',
+}
+
+/** Etiqueta visible de un perfil; el código interno se mantiene sin cambios. */
+export function roleLabel(role: Role | null | undefined): string {
+  return role ? ROLE_LABELS[role] : 'Perfil no verificado'
 }

@@ -1,3 +1,8 @@
+import { configureSpanishZodErrors } from './i18n/zod-es.js'
+
+configureSpanishZodErrors()
+
+export * from './i18n/zod-es.js'
 export * from './constants/roles.js'
 export * from './constants/permissions.js'
 export * from './schemas/auth.js'

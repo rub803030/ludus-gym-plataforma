@@ -164,11 +164,11 @@ export function RoutineBuilder() {
         <PageHeader
           eyebrow="Entrenamiento y nutrición"
           title="Asignación de rutinas"
-          description="El diseño de planes de entrenamiento requiere perfil MANAGER o superior."
+          description="El diseño de planes de entrenamiento requiere perfil de encargado o superior."
         />
         <EmptyState
           eyebrow="Acceso restringido"
-          title="Requiere MANAGER+"
+          title="Requiere perfil de encargado"
           description="Tu perfil puede consultar la operación diaria, pero no asignar rutinas ni planes nutricionales."
         />
       </>
@@ -284,7 +284,7 @@ export function RoutineBuilder() {
                       max={20}
                     />
                     <NumericInput
-                      label="Reps"
+                      label="Repeticiones"
                       value={exercise.reps}
                       onChange={(value) => updateExercise(exercise.id, { reps: value })}
                       min={1}

@@ -210,7 +210,7 @@ export function OccupancyBoard() {
           </h2>
           <form onSubmit={(event) => void handleQrVerify(event)}>
             <label htmlFor="qr-payload" className="mb-2 block text-[10px] font-semibold uppercase tracking-[0.18em] text-muted">
-              Payload del código
+              Contenido del código
             </label>
             <textarea
               id="qr-payload"
@@ -228,7 +228,7 @@ export function OccupancyBoard() {
           </form>
 
           <h2 className="mb-5 mt-12 border-b border-hairline pb-4 font-display text-lg font-extrabold uppercase tracking-[-0.03em]">
-            Check-in manual
+            Registro manual
           </h2>
           <form onSubmit={(event) => void handleManualCheckin(event)}>
             <label htmlFor="manual-member" className="mb-2 block text-[10px] font-semibold uppercase tracking-[0.18em] text-muted">
@@ -302,7 +302,7 @@ export function OccupancyBoard() {
             <EmptyState
               eyebrow="Sin eventos"
               title="Aún no hay accesos"
-              description="Las validaciones de QR y los check-ins manuales aparecerán aquí con su resultado."
+              description="Las validaciones de QR y los registros manuales aparecerán aquí con su resultado."
             />
           ) : (
             <ul>

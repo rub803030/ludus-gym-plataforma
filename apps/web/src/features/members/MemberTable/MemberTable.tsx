@@ -352,7 +352,7 @@ export function MemberTable() {
                     )
                   ) : (
                     <p className="border-l-2 border-hairline px-4 py-3 text-sm text-muted">
-                      Información clínica restringida a OWNER y MANAGER.
+                      Información clínica restringida al propietario y al encargado.
                     </p>
                   )}
                 </section>
