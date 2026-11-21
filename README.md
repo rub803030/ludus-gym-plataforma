@@ -18,7 +18,8 @@ Supabase, con RLS en 26/26 tablas, CSRF, rate limit distribuido, cifrado de camp
 médicos, AAB firmado, despliegue público y verificación obligatoria de correo para
 STAFF y SOCIOS mediante Resend. La app de socios usa la API pública de Fly.io, guarda
 la credencial QR firmada por el servidor y ofrece las cinco pantallas cableadas:
-Inicio, pase QR, Entrenamiento, Nutrición y Reservas.
+Inicio, pase QR, Entrenamiento, Nutrición y Reservas. El comprobante de cobro
+muestra un QR escaneable y el tema (luna/sol) se elige desde cualquier página.
 
 ## Módulos incluidos
 
@@ -48,7 +49,8 @@ El pase QR rota cada 30 s y se firma con HMAC-SHA256. Los cobros son idempotente
 Las mutaciones web exigen token CSRF; las sesiones usan cookies Secure + HttpOnly +
 SameSite=Strict en producción y los campos médicos se cifran con AES-256-GCM.
 El acceso exige correo verificado: el enlace es de un solo uso, expira en 30 minutos
-y solo se persiste su hash SHA-256.
+y solo se persiste su hash SHA-256. Las pruebas unitarias cubren ViewModels de reservas
+y nutrición y la expiración del pase QR.
 
 ## Verificación y despliegue
 
