@@ -15,7 +15,7 @@ import { roleLabel } from '@/lib/format'
 import { useSession } from '@/lib/use-session'
 import type { Principal } from '@/types'
 import { Button } from '@/ui/primitives/Button'
-import { ThemeIcon } from '@/ui/primitives/ThemeIcon'
+import { ThemeToggle } from '@/ui/primitives/ThemeToggle'
 
 interface NavItem {
   href: string
@@ -76,7 +76,6 @@ export function ConsoleShell({ principal, sessionError, children }: ConsoleShell
   const pathname = usePathname()
   const router = useRouter()
   const session = useSession()
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark')
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
   const role = session?.principal.role ?? principal?.role ?? null
@@ -84,11 +83,6 @@ export function ConsoleShell({ principal, sessionError, children }: ConsoleShell
   useEffect(() => {
     hydrateSession()
     if (principal && !session) setSession({ principal, csrfToken: readCsrfToken() })
-    const stored = window.localStorage.getItem('ludus-theme')
-    if (stored === 'light' || stored === 'dark') {
-      setTheme(stored)
-      document.documentElement.dataset.theme = stored
-    }
   }, [principal, session])
 
   useEffect(() => {
@@ -132,17 +126,6 @@ export function ConsoleShell({ principal, sessionError, children }: ConsoleShell
     document.addEventListener('keydown', handleKey)
     return () => document.removeEventListener('keydown', handleKey)
   }, [router])
-
-  function toggleTheme() {
-    const next = theme === 'dark' ? 'light' : 'dark'
-    setTheme(next)
-    document.documentElement.dataset.theme = next
-    try {
-      window.localStorage.setItem('ludus-theme', next)
-    } catch {
-      /* preference is still applied for this session */
-    }
-  }
 
   async function handleLogout() {
     if (loggingOut) return
@@ -237,15 +220,7 @@ export function ConsoleShell({ principal, sessionError, children }: ConsoleShell
                 {roleLabel(role)}
               </span>
             ) : null}
-            <button
-              type="button"
-              onClick={toggleTheme}
-              aria-label={`Cambiar a tema ${theme === 'dark' ? 'claro' : 'oscuro'}`}
-              title={theme === 'dark' ? 'Tema oscuro' : 'Tema claro'}
-              className="flex h-12 w-12 items-center justify-center border border-hairline text-muted transition-colors duration-300 ease-kinetic hover:border-volt/50 hover:text-volt"
-            >
-              <ThemeIcon theme={theme} />
-            </button>
+            <ThemeToggle />
             <button
               type="button"
               onClick={() => setShortcutsOpen(true)}
