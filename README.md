@@ -56,6 +56,8 @@ y nutrición y la expiración del pase QR.
 
 Producción: https://ludus-gym-plataforma.vercel.app
 
+Descarga de la app Android para socios: https://ludus-gym-plataforma.vercel.app/apk
+
 ```bash
 python scripts/test-api-flows.py     # flujos extremo a extremo (verifica correos demo)
 python scripts/verify-all.py         # typecheck + tests + builds
