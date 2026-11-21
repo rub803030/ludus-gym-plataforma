@@ -259,7 +259,7 @@ export function CheckoutPanel() {
                     }}
                     className={[
                       'flex min-h-12 w-full items-center justify-between gap-4 border-b border-hairline px-4 text-left transition-colors duration-300 ease-kinetic',
-                      memberId === member.id ? 'bg-[var(--color-surface-raised)] text-volt' : 'hover:bg-surface text-ink',
+                      memberId === member.id ? 'bg-[var(--color-surface-raised)] text-raised-accent' : 'hover:bg-surface text-ink',
                     ].join(' ')}
                   >
                     <span className="flex items-center gap-3">
