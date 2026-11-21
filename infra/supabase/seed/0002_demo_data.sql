@@ -1,11 +1,11 @@
 -- Datos demo de Ludus GYM (SOLO desarrollo).
 -- Correos de prueba (requieren verificación):
---   rubnlira2+owner@gmail.com / Owner2026!
+--   rubnlira2@gmail.com / Owner2026!
 --   rubnlira2+manager@gmail.com / Manager2026!
 --   rubnlira2+staff@gmail.com / Staff2026!
 --   rubnlira2+socio@gmail.com / Ludus2026!
 
-INSERT INTO staff_users (id, gym_id, email, password_hash, full_name, role, is_active) VALUES ('00000000-0000-7000-8000-000000000101', '00000000-0000-7000-8000-000000000001', 'rubnlira2+owner@gmail.com', 'scrypt$fa190ed7bf71c499178977a82d51ca7b$88d8f08dc29aee7b1b1edc44f1bc1a6d9efa4c0d59b4e3e601df737a1483245951fe95cb4406013bfa18bb521593d005139941f5bbbe066e19bc36c32f2e40a5', 'Ricardo Dueño', 'OWNER', true) ON CONFLICT (id) DO NOTHING;
+INSERT INTO staff_users (id, gym_id, email, password_hash, full_name, role, is_active) VALUES ('00000000-0000-7000-8000-000000000101', '00000000-0000-7000-8000-000000000001', 'rubnlira2@gmail.com', 'scrypt$fa190ed7bf71c499178977a82d51ca7b$88d8f08dc29aee7b1b1edc44f1bc1a6d9efa4c0d59b4e3e601df737a1483245951fe95cb4406013bfa18bb521593d005139941f5bbbe066e19bc36c32f2e40a5', 'Ricardo Dueño', 'OWNER', true) ON CONFLICT (id) DO NOTHING;
 INSERT INTO staff_users (id, gym_id, email, password_hash, full_name, role, is_active) VALUES ('00000000-0000-7000-8000-000000000102', '00000000-0000-7000-8000-000000000001', 'rubnlira2+manager@gmail.com', 'scrypt$f05ad21198f2f4e5c6da0d97a049f584$65e38f358f93caab7813780f03564cc73e561524b6412c63a68afcfe4e8f451d02a835f7f0514e38a695af9e34f4d4efacd389e5d62e3dbf5feb1f1b6d5e97c4', 'Mariana Encargado', 'MANAGER', true) ON CONFLICT (id) DO NOTHING;
 INSERT INTO staff_users (id, gym_id, email, password_hash, full_name, role, is_active) VALUES ('00000000-0000-7000-8000-000000000103', '00000000-0000-7000-8000-000000000001', 'rubnlira2+staff@gmail.com', 'scrypt$b8aea7eefe60a05ab6c0f3b29a955f4b$a44ebcac0df7e211bdf398179fcbe8a76378bbb6817cec56131353d1eef24a214d55dd6fc169c009649e1055d7e52df4f85e17bc2d3897f9fac4021940c35358', 'Sofía Recepción', 'STAFF', true) ON CONFLICT (id) DO NOTHING;
 

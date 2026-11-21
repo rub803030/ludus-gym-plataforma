@@ -23,8 +23,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_member_verification_token
   ON public.members (verification_token_hash)
   WHERE verification_token_hash IS NOT NULL;
 
--- Correos de prueba reales (variantes + del propietario de Resend).
-UPDATE public.staff_users SET email = 'rubnlira2+owner@gmail.com', email_verified = false, verification_token_hash = NULL, verification_expires_at = NULL
+-- Correos de prueba reales (dueño usa su correo principal; el resto son variantes +).
+UPDATE public.staff_users SET email = 'rubnlira2@gmail.com', email_verified = false, verification_token_hash = NULL, verification_expires_at = NULL
   WHERE id = '00000000-0000-7000-8000-000000000101';
 UPDATE public.staff_users SET email = 'rubnlira2+manager@gmail.com', email_verified = false, verification_token_hash = NULL, verification_expires_at = NULL
   WHERE id = '00000000-0000-7000-8000-000000000102';
