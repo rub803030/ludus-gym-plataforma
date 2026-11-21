@@ -147,7 +147,7 @@ fun BookingsScreen(
                                 modifier = Modifier.weight(1f),
                             )
                             Text(
-                                text = "${receipt.amount} €",
+                                text = "${String.format(java.util.Locale("es", "MX"), "%.2f", receipt.amount)} MXN",
                                 style = MaterialTheme.typography.labelLarge,
                                 color = Emerald,
                             )
