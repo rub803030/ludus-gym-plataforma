@@ -8,6 +8,7 @@ data class QrTokenDto(
     @Json(name = "expiresAt") val expiresAt: String? = null,
     @Json(name = "expiresIn") val expiresIn: Long? = null,
     @Json(name = "validForSeconds") val validForSeconds: Long? = null,
+    @Json(name = "offlineCredential") val offlineCredential: String? = null,
 ) {
     fun value(): String? = token ?: qrToken
 }

@@ -1,9 +1,9 @@
 package com.ludus.gym.di
 
 import android.content.Context
-import android.os.Build
 import androidx.room.Room
 import androidx.work.WorkManager
+import com.ludus.gym.BuildConfig
 import com.ludus.gym.data.local.AppDatabase
 import com.ludus.gym.data.local.SecureTokenStore
 import com.ludus.gym.data.local.SyncWorker
@@ -59,14 +59,7 @@ class AppContainer(context: Context) {
         const val WEB_APP_URL = "https://ludus-gym-plataforma.vercel.app"
     }
 
-    private val baseUrl: String by lazy {
-        val fingerprint = Build.FINGERPRINT.lowercase()
-        val isEmulator = fingerprint.contains("generic") || fingerprint.contains("emulator") ||
-            Build.MODEL.lowercase().contains("emulator") ||
-            Build.MANUFACTURER.lowercase().contains("genymotion")
-        val host = if (isEmulator) "10.0.2.2" else "localhost"
-        "http://$host:4000/"
-    }
+    private val baseUrl: String = BuildConfig.API_BASE_URL
 
     val tokens = SecureTokenStore(appContext)
     val network = NetworkMonitor(appContext)

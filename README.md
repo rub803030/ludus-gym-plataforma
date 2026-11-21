@@ -13,10 +13,12 @@ Plataforma integral de gestión operativa, financiera y de entrenamiento para **
 
 ## Estado
 
-**Fase 3 — Publicación HTTPS y verificación de correo completadas.** API, consola web y app Android
-funcionales sobre Supabase, con RLS en 25/25 tablas, CSRF, rate limit distribuido,
-cifrado de campos médicos, AAB firmado, despliegue público y verificación obligatoria
-de correo para STAFF y SOCIOS mediante Resend.
+**Fase 4 — Base móvil completada.** API, consola web y app Android funcionales sobre
+Supabase, con RLS en 26/26 tablas, CSRF, rate limit distribuido, cifrado de campos
+médicos, AAB firmado, despliegue público y verificación obligatoria de correo para
+STAFF y SOCIOS mediante Resend. La app de socios usa la API pública de Fly.io, guarda
+la credencial QR firmada por el servidor y cuenta con pruebas del formato QR en verde.
+**Fase 5 en curso:** Inicio y QR implementados; Rutina, Nutrición y Reservas pendientes.
 
 ## Módulos incluidos
 
