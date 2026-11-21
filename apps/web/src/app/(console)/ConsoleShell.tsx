@@ -198,7 +198,7 @@ export function ConsoleShell({ principal, sessionError, children }: ConsoleShell
                         className={[
                           'flex min-h-12 items-center gap-3 whitespace-nowrap border-l-2 px-3 text-[12px] font-semibold uppercase tracking-[0.1em] transition-all duration-300 ease-kinetic',
                           active
-                            ? 'border-volt bg-[var(--color-surface-raised)] text-ink'
+                            ? 'border-volt bg-[var(--color-surface-raised)] text-raised-ink ring-1 ring-hairline'
                             : 'border-transparent text-muted hover:border-hairline hover:text-ink',
                         ].join(' ')}
                       >

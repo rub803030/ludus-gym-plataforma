@@ -222,7 +222,7 @@ export function RoutineBuilder() {
                     }}
                     className={[
                       'flex min-h-12 w-full items-center justify-between border-b border-hairline px-4 text-left text-sm transition-colors duration-300 ease-kinetic',
-                      memberId === member.id ? 'bg-[var(--color-surface-raised)] text-volt' : 'text-ink hover:bg-surface',
+                      memberId === member.id ? 'bg-[var(--color-surface-raised)] text-raised-accent' : 'text-ink hover:bg-surface',
                     ].join(' ')}
                   >
                     <span className="font-semibold">{member.fullName}</span>

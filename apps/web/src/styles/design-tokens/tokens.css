@@ -2,6 +2,8 @@
   --color-canvas: #0d0f12;
   --color-surface: #16191e;
   --color-surface-raised: #1f242d;
+  --color-raised-ink: #e2e2e6;
+  --color-raised-accent: #ccff00;
   --color-ink: #e2e2e6;
   --color-muted: #94a3b8;
   --color-volt: #ccff00;
@@ -17,6 +19,9 @@
 [data-theme='light'] {
   --color-canvas: #f6f5f2;
   --color-surface: #eceae4;
+  --color-surface-raised: #ffffff;
+  --color-raised-ink: #181816;
+  --color-raised-accent: #4f6b00;
   --color-ink: #181816;
   --color-muted: #5e5d58;
   --color-hairline: rgba(24, 24, 22, 0.14);
