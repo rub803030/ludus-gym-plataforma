@@ -25,6 +25,8 @@ staff = [
     ("00000000-0000-7000-8000-000000000101", "rubnlira2@gmail.com", "Owner2026!", "Ricardo Dueño", "OWNER"),
     ("00000000-0000-7000-8000-000000000102", "rubnlira2+manager@gmail.com", "Manager2026!", "Mariana Encargado", "MANAGER"),
     ("00000000-0000-7000-8000-000000000103", "rubnlira2+staff@gmail.com", "Staff2026!", "Sofía Recepción", "STAFF"),
+    ("00000000-0000-7000-8000-000000000104", "alancitomukul@outlook.com", "AlanOwner2026!", "Alan-2023Dts", "OWNER"),
+    ("00000000-0000-7000-8000-000000000105", "alecanche328@gmail.com", "AlejandroOwner2026!", "alecanche04-cyber", "OWNER"),
 ]
 
 member_id = "00000000-0000-7000-8000-000000000201"
@@ -32,8 +34,8 @@ member_hash = scrypt_hash("Ludus2026!")
 
 lines = [
     "-- Datos demo de Ludus GYM (SOLO desarrollo).",
-    "-- Correos: rubnlira2 (owner), rubnlira2+manager/+staff/+socio@gmail.com (requieren verificación).",
-    "-- Passwords: Owner2026!, Manager2026!, Staff2026!, Ludus2026!",
+    "-- Correos: rubnlira2 (owner), rubnlira2+manager/+staff/+socio@gmail.com y coautores (requieren verificación).",
+    "-- Passwords: Owner2026!, Manager2026!, Staff2026!, Ludus2026!, AlanOwner2026!, AlejandroOwner2026!",
     "",
 ]
 for uid, email, password, name, role in staff:
