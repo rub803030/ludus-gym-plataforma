@@ -7,33 +7,16 @@ import { roleLabel } from '@/lib/format'
 import { useSession } from '@/lib/use-session'
 import { PageHeader } from '@/ui/layout/PageHeader'
 import { Button } from '@/ui/primitives/Button'
-import { ThemeIcon } from '@/ui/primitives/ThemeIcon'
+import { ThemeToggle } from '@/ui/primitives/ThemeToggle'
 
 export default function SettingsPage() {
   const router = useRouter()
   const session = useSession()
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark')
   const [loggingOut, setLoggingOut] = useState(false)
 
   useEffect(() => {
     hydrateSession()
-    const stored = window.localStorage.getItem('ludus-theme')
-    if (stored === 'light' || stored === 'dark') {
-      setTheme(stored)
-      document.documentElement.dataset.theme = stored
-    }
   }, [])
-
-  function toggleTheme() {
-    const next = theme === 'dark' ? 'light' : 'dark'
-    setTheme(next)
-    document.documentElement.dataset.theme = next
-    try {
-      window.localStorage.setItem('ludus-theme', next)
-    } catch {
-      /* theme still applies to the current session */
-    }
-  }
 
   async function handleLogout() {
     if (loggingOut) return
@@ -66,24 +49,8 @@ export default function SettingsPage() {
           <p className="text-sm leading-relaxed text-muted">
             Estilo Kinetic Obsidiana: superficies tonales, divisores de un pixel y acentos de alto contraste.
           </p>
-          <div className="mt-6 grid grid-cols-2 gap-px border border-hairline bg-[var(--color-hairline)]">
-            {(['dark', 'light'] as const).map((option) => (
-              <button
-                key={option}
-                type="button"
-                onClick={() => {
-                  if (theme !== option) toggleTheme()
-                }}
-                aria-pressed={theme === option}
-                className={[
-                  'flex min-h-14 items-center justify-center gap-3 px-4 text-[11px] font-bold uppercase tracking-[0.14em] transition-colors duration-300 ease-kinetic',
-                  theme === option ? 'bg-volt text-canvas' : 'bg-surface text-muted hover:text-ink',
-                ].join(' ')}
-              >
-                <ThemeIcon theme={option} />
-                {option === 'dark' ? 'Tema oscuro' : 'Tema claro'}
-              </button>
-            ))}
+          <div className="mt-6">
+            <ThemeToggle variant="labeled" />
           </div>
         </section>
 

@@ -1,11 +1,15 @@
 import { Suspense } from 'react'
 import { VerifyEmail } from '@/features/auth/VerifyEmail/VerifyEmail'
+import { ThemeToggle } from '@/ui/primitives/ThemeToggle'
 
 export const dynamic = 'force-dynamic'
 
 export default function VerifyEmailPage() {
   return (
-    <main className="grid min-h-screen lg:grid-cols-[1.15fr_1fr]">
+    <main className="relative grid min-h-screen lg:grid-cols-[1.15fr_1fr]">
+      <div className="absolute right-5 top-5 z-20 md:right-9 md:top-9">
+        <ThemeToggle />
+      </div>
       <section className="relative flex flex-col justify-between overflow-hidden border-b border-hairline px-7 py-10 md:px-16 md:py-14 lg:min-h-screen lg:border-b-0 lg:border-r">
         <div aria-hidden className="pointer-events-none absolute -right-40 top-1/4 h-[540px] w-[540px] rounded-full border border-hairline" />
         <div aria-hidden className="pointer-events-none absolute -right-24 top-1/3 h-[380px] w-[380px] rounded-full border border-hairline" />
