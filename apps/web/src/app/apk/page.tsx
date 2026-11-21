@@ -36,7 +36,7 @@ export default function ApkPage() {
         </ol>
 
         <p className="mt-10 border-t border-hairline pt-6 text-xs leading-relaxed text-muted">
-          Firmado con el certificado Ludus GYM · 2,3 MB · Android 8.0 (API 26) o superior.
+          Versión 0.1.1 · firmado con el certificado Ludus GYM · 2,3 MB · Android 8.0 (API 26) o superior.
         </p>
       </section>
     </main>
