@@ -25,7 +25,7 @@ de poder entrar. Si no llegó, usa **Reenviar correo** en la pantalla de acceso.
 1. Buscar al socio por nombre, código o documento.
 2. Elegir plan, monto y método de pago.
 3. Confirmar. El sistema bloquea el botón durante el cobro y usa una llave de idempotencia para que un doble clic nunca genere dos cargos.
-4. Se muestra el recibo con folio y QR de acceso.
+4. Se muestra el recibo con folio y un QR escaneable del comprobante.
 
 ### Check-in
 - Escannear el QR dinámico del socio (rota cada 30 s), o buscarlo manualmente y marcar **Check-in**.
