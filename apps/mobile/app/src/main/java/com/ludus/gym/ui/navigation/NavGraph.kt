@@ -22,6 +22,8 @@ import com.ludus.gym.LudusApplication
 import com.ludus.gym.ui.screens.auth.LoginScreen
 import com.ludus.gym.ui.screens.auth.LoginViewModel
 import com.ludus.gym.ui.screens.auth.VerifyEmailScreen
+import com.ludus.gym.ui.screens.qr.QrScreen
+import com.ludus.gym.ui.screens.qr.QrViewModel
 import com.ludus.gym.ui.viewModelFactory
 
 @Composable
@@ -85,13 +87,29 @@ fun LudusNavHost(deepLinkToken: String? = null) {
             arguments = listOf(navArgument("name") { type = NavType.StringType }),
         ) { backStackEntry ->
             val name = backStackEntry.arguments?.getString("name").orEmpty()
-            HomeScreen(name = name, onExit = { navController.navigate("login") { popUpTo("home/{name}") { inclusive = true } } })
+            HomeScreen(
+                name = name,
+                onQr = { navController.navigate("qr") },
+                onExit = { navController.navigate("login") { popUpTo("home/{name}") { inclusive = true } } },
+            )
+        }
+
+        composable("qr") {
+            val factory = viewModelFactory {
+                QrViewModel(
+                    observeQr = container.observeQrUseCase,
+                    getQr = container.getQrUseCase,
+                    recordAccess = container.recordAccessUseCase,
+                )
+            }
+            val viewModel: QrViewModel = viewModel(factory = factory)
+            QrScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
         }
     }
 }
 
 @Composable
-private fun HomeScreen(name: String, onExit: () -> Unit) {
+private fun HomeScreen(name: String, onQr: () -> Unit, onExit: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -102,6 +120,7 @@ private fun HomeScreen(name: String, onExit: () -> Unit) {
         Text("Ludus.", style = MaterialTheme.typography.displaySmall, color = MaterialTheme.colorScheme.primary)
         Text("Sesión iniciada", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(top = 16.dp))
         Text("Bienvenido, $name", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(top = 8.dp))
-        Button(onClick = onExit, modifier = Modifier.padding(top = 24.dp)) { Text("Cerrar sesión") }
+        Button(onClick = onQr, modifier = Modifier.padding(top = 24.dp)) { Text("Mi pase QR") }
+        Button(onClick = onExit, modifier = Modifier.padding(top = 12.dp)) { Text("Cerrar sesión") }
     }
 }

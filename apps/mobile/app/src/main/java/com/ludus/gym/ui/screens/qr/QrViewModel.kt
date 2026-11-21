@@ -8,7 +8,6 @@ import androidx.lifecycle.viewModelScope
 import com.ludus.gym.domain.usecase.GetQrUseCase
 import com.ludus.gym.domain.usecase.ObserveQrUseCase
 import com.ludus.gym.domain.usecase.RecordAccessUseCase
-import com.ludus.gym.domain.usecase.VerifyQrLocallyUseCase
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
@@ -17,7 +16,6 @@ import kotlinx.coroutines.launch
 class QrViewModel(
     observeQr: ObserveQrUseCase,
     private val getQr: GetQrUseCase,
-    private val verifyLocally: VerifyQrLocallyUseCase,
     private val recordAccess: RecordAccessUseCase,
 ) : ViewModel() {
 
@@ -38,24 +36,20 @@ class QrViewModel(
             while (true) {
                 delay(1_000L)
                 nowMillis = System.currentTimeMillis()
-                val current = ticket.value
-                val expired = current?.isExpired(nowMillis) ?: true
-                val needsRotation = current?.offline == true &&
-                    (nowMillis - lastIssuedAt) >= 30_000L
-                if (expired || needsRotation) refresh()
+                if (ticket.value?.isExpired(nowMillis) != false) refresh()
             }
         }
     }
-
-    private var lastIssuedAt: Long = 0L
 
     fun refresh() {
         if (isRefreshing) return
         viewModelScope.launch {
             isRefreshing = true
             getQr()
-                .onSuccess { lastIssuedAt = System.currentTimeMillis() }
-                .onFailure { message = "No se pudo actualizar el código. Se mantiene la credencial guardada." }
+                .onSuccess { message = null }
+                .onFailure {
+                    message = "Sin conexión: se muestra el último pase offline guardado."
+                }
             isRefreshing = false
         }
     }
@@ -70,5 +64,8 @@ class QrViewModel(
         copied = false
     }
 
-    fun isValidForDisplay(payload: String): Boolean = verifyLocally(payload)
+    fun isValidForDisplay(payload: String): Boolean {
+        val current = ticket.value ?: return false
+        return payload == current.token && !current.isExpired(nowMillis)
+    }
 }
