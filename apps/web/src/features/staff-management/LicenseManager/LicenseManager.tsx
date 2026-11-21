@@ -37,6 +37,25 @@ const PERMISSIONS: readonly string[] = [
   'audit:read',
 ]
 
+const PERMISSION_LABELS: Record<string, string> = {
+  'members:read': 'Consultar socios',
+  'members:write': 'Crear y editar socios',
+  'members:medical:read': 'Consultar información médica',
+  'payments:charge': 'Registrar cobros',
+  'payments:refund': 'Reembolsar cobros',
+  'payments:audit': 'Auditar cobros',
+  'cash:shift:open': 'Abrir turno de caja',
+  'cash:shift:close': 'Cerrar turno de caja',
+  'staff:manage': 'Gestionar equipo y licencias',
+  'plans:manage': 'Gestionar planes y precios',
+  'reports:financial': 'Consultar reportes financieros',
+  'routines:assign': 'Asignar rutinas',
+  'nutrition:assign': 'Asignar planes nutricionales',
+  'classes:manage': 'Gestionar clases',
+  'access:checkin': 'Registrar accesos',
+  'audit:read': 'Consultar bitácora de auditoría',
+}
+
 const MATRIX: Record<Role, readonly string[]> = {
   OWNER: PERMISSIONS,
   MANAGER: [
@@ -253,7 +272,7 @@ export function LicenseManager() {
                       className={`flex items-center gap-3 text-xs ${allowed ? 'text-ink' : 'text-muted/50'}`}
                     >
                       <span aria-hidden className={`h-1 w-1 shrink-0 rounded-full ${allowed ? 'bg-emerald' : 'bg-muted/40'}`} />
-                      <span className="font-mono">{permission}</span>
+                      <span>{PERMISSION_LABELS[permission] ?? permission}</span>
                     </li>
                   )
                 })}
