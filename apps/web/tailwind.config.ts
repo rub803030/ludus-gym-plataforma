@@ -7,6 +7,8 @@ export default {
       colors: {
         canvas: 'var(--color-canvas)',
         surface: 'var(--color-surface)',
+        'raised-ink': 'var(--color-raised-ink)',
+        'raised-accent': 'var(--color-raised-accent)',
         ink: 'var(--color-ink)',
         muted: 'var(--color-muted)',
         volt: 'var(--color-volt)',
