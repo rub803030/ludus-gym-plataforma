@@ -24,8 +24,9 @@ muestra un QR escaneable y el tema (luna/sol) se elige desde cualquier página.
 ## Módulos incluidos
 
 Socios y membresías · cobros/caja con idempotencia · control de acceso con QR dinámico
-y offline · rutinas y nutrición · clases e inventario · reportes y auditoría ·
-gestión de staff · almacenamiento con URLs prefirmadas · notificaciones Socket.io.
+y offline, con lector de cámara en la consola web y pegado manual como respaldo ·
+rutinas y nutrición · clases e inventario · reportes y auditoría · gestión de staff ·
+almacenamiento con URLs prefirmadas · notificaciones Socket.io.
 
 ## Arranque local
 

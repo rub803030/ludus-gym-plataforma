@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react
 import { api, getErrorMessage } from '@/lib/api-client'
 import { formatNumber, formatTime } from '@/lib/format'
 import type { AccessEvent, MemberView, OccupancyView, QrResultStatus } from '@/types'
+import { QrScanner } from '@/features/turnstile-live/QrScanner/QrScanner'
 import { EmptyState } from '@/ui/layout/EmptyState'
 import { PageHeader } from '@/ui/layout/PageHeader'
 import { Button } from '@/ui/primitives/Button'
@@ -37,6 +38,7 @@ export function OccupancyBoard() {
   const [selectedMemberId, setSelectedMemberId] = useState('')
   const [checkingIn, setCheckingIn] = useState(false)
   const [qrText, setQrText] = useState('')
+  const [scannerOpen, setScannerOpen] = useState(false)
   const [verifying, setVerifying] = useState(false)
   const [result, setResult] = useState<{ status: QrResultStatus; message: string } | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
@@ -116,26 +118,25 @@ export function OccupancyBoard() {
     }
   }
 
-  async function handleQrVerify(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    if (!qrText.trim() || verifying) return
+  function normalizeQrPayload(raw: string): string {
+    try {
+      const parsed: unknown = JSON.parse(raw)
+      if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+        const record = parsed as Record<string, unknown>
+        return typeof record['token'] === 'string' ? record['token'].trim() : toBase64Url(JSON.stringify(record))
+      }
+    } catch {
+      // El valor ya es un token base64url.
+    }
+    return raw.trim()
+  }
+
+  async function verifyToken(raw: string) {
+    const token = normalizeQrPayload(raw)
+    if (!token || verifying) return
     setVerifying(true)
     setActionError(null)
     try {
-      let token: string
-      try {
-        const parsed: unknown = JSON.parse(qrText)
-        if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
-          const record = parsed as Record<string, unknown>
-          token = typeof record['token'] === 'string'
-            ? record['token'].trim()
-            : toBase64Url(JSON.stringify(record))
-        } else {
-          token = qrText.trim()
-        }
-      } catch {
-        token = qrText.trim()
-      }
       const verification = await api.access.verifyQr({ token, deviceId: 'ludus-web-reader' })
       registerEvent(verification.status, verification.message, verification.event.memberName, verification.message)
     } catch (verifyError) {
@@ -145,6 +146,17 @@ export function OccupancyBoard() {
     } finally {
       setVerifying(false)
     }
+  }
+
+  async function handleQrVerify(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    await verifyToken(qrText)
+  }
+
+  function handleScan(token: string) {
+    setQrText(token)
+    setScannerOpen(false)
+    void verifyToken(token)
   }
 
   const percent = occupancy?.percent ?? 0
@@ -232,11 +244,17 @@ export function OccupancyBoard() {
               id="qr-payload"
               value={qrText}
               onChange={(event) => setQrText(event.target.value)}
-              rows={4}
+              rows={3}
               placeholder='Pega el token base64url del QR o el JSON del pase'
               className="w-full border border-hairline bg-surface p-4 font-mono text-xs leading-relaxed text-ink outline-none transition-colors duration-300 ease-kinetic placeholder:text-muted/50 focus:border-volt"
             />
-            <div className="mt-4">
+            <p className="mt-3 text-xs leading-relaxed text-muted">
+              Escanea el pase con la cámara o pega el contenido manualmente. El acceso se valida al detectar el código.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <Button type="button" variant="ghost" onClick={() => setScannerOpen(true)} disabled={verifying}>
+                Escanear QR
+              </Button>
               <Button type="submit" loading={verifying} disabled={!qrText.trim()}>
                 Validar código
               </Button>
@@ -338,6 +356,12 @@ export function OccupancyBoard() {
           )}
         </section>
       </div>
+
+      <QrScanner
+        open={scannerOpen}
+        onDetected={handleScan}
+        onClose={() => setScannerOpen(false)}
+      />
     </>
   )
 }
