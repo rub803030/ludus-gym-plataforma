@@ -46,7 +46,7 @@ entre dominios distintos.
 | `S3_*` | Fly.io | Proveedor S3/R2 real configurado en secretos |
 | `RESEND_API_KEY` | Fly.io (secreto) | Clave privada de Resend; nunca en Vercel ni en el repo |
 | `EMAIL_FROM` | Fly.io | Remitente verificado en Resend (`onboarding@resend.dev` en pruebas) |
-| `RESEND_TEST_RECIPIENT` | Solo local/desarrollo | Bandeja del dueño de Resend para probar con cuentas demo. Se ignora en producción: el correo siempre va al destinatario real |
+| `RESEND_TEST_RECIPIENT` | Solo mientras `EMAIL_FROM` use `@resend.dev` | Bandeja del dueño de Resend para probar con cuentas demo. Se ignora automáticamente al configurar un remitente verificado |
 | `WEB_APP_URL` | Fly.io | URL pública de Vercel usada para construir el enlace de verificación |
 | `EMAIL_VERIFICATION_TTL_MINUTES` | Fly.io | Vigencia del enlace de un solo uso (30 min por defecto) |
 
@@ -61,4 +61,4 @@ y añade el dominio en Vercel. El código no se modifica.
 - La web añade HSTS, CSP, `X-Frame-Options: DENY` y `Referrer-Policy: no-referrer` en producción.
 - Los secretos nunca se versionan: `.env.local`, keystores y builds están ignorados.
 - STAFF y SOCIOS deben verificar su correo antes de iniciar sesión: enlace de un solo uso, TTL de 30 minutos, cooldown de reenvío y hash SHA-256 del token en base de datos (nunca el token en claro).
-- Con `onboarding@resend.dev`, Resend solo entrega a la dirección propietaria de la cuenta; `RESEND_TEST_RECIPIENT` redirige allí los correos en local/desarrollo (el asunto identifica la cuenta). En producción la redirección está desactivada: el enlace se envía siempre al correo del socio o del OWNER. Para que Resend entregue a cualquier destinatario hay que verificar un dominio propio y configurar `EMAIL_FROM` con ese remitente.
+- Con `onboarding@resend.dev`, Resend solo entrega a la dirección propietaria de la cuenta (403 para cualquier otro destinatario); `RESEND_TEST_RECIPIENT` redirige allí los correos mientras se use ese remitente de prueba (el asunto identifica la cuenta). En cuanto `EMAIL_FROM` usa un dominio verificado, la redirección se ignora y el enlace llega al correo real del socio o del OWNER, aunque `RESEND_TEST_RECIPIENT` siga configurado.

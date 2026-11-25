@@ -24,10 +24,13 @@ export async function sendVerificationEmail(input: VerificationEmailInput): Prom
   }
 
   const audience = input.platform === 'web' ? 'la consola de operación' : 'la app Ludus GYM'
-  // En desarrollo, onboarding@resend.dev solo entrega al dueño de la cuenta:
-  // RESEND_TEST_RECIPIENT permite probar sin salir de esa bandeja. En producción
-  // NUNCA se redirige: el correo debe llegar a la dirección real del socio.
-  const testRecipient = env.NODE_ENV === 'production' ? undefined : env.RESEND_TEST_RECIPIENT
+  // El dominio de prueba de Resend solo entrega al dueño de la cuenta. Mientras
+  // EMAIL_FROM use @resend.dev, RESEND_TEST_RECIPIENT mantiene funcional el modo
+  // demo. Con un remitente verificado NUNCA se redirige: el correo llega al correo
+  // real del socio o del OWNER, aunque la variable de prueba siga configurada.
+  const fromAddress = env.EMAIL_FROM.match(/<([^>]+)>/)?.[1] ?? env.EMAIL_FROM
+  const usesTestSender = /@resend\.dev$/i.test(fromAddress.trim())
+  const testRecipient = usesTestSender ? env.RESEND_TEST_RECIPIENT : undefined
   const recipient = testRecipient || input.to
   const deliveryNote =
     recipient === input.to ? '' : ` Cuenta: ${input.to}. Entrega de prueba en ${recipient}.`

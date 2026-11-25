@@ -32,8 +32,11 @@ afterEach(() => {
 })
 
 describe('destinatario del correo de verificación', () => {
-  it('en producción entrega al correo real del socio aunque exista una bandeja de prueba', async () => {
-    configure({ RESEND_TEST_RECIPIENT: 'dueno@example.com' })
+  it('entrega al correo real del socio en cuanto el remitente está verificado', async () => {
+    configure({
+      EMAIL_FROM: 'Ludus GYM <verificacion@ludus.example.com>',
+      RESEND_TEST_RECIPIENT: 'dueno@example.com',
+    })
     const { mocks } = captureFetch()
 
     await sendVerificationEmail({
@@ -48,6 +51,21 @@ describe('destinatario del correo de verificación', () => {
     expect(mocks[0]?.subject).toContain('socio@example.com')
     expect(mocks[0]?.text).not.toContain('Entrega de prueba')
     expect(mocks[0]?.html).not.toContain('Entrega de prueba')
+  })
+
+  it('con el remitente de prueba de Resend mantiene funcional el modo demo', async () => {
+    configure({ RESEND_TEST_RECIPIENT: 'dueno@example.com' })
+    const { mocks } = captureFetch()
+
+    await sendVerificationEmail({
+      to: 'socio@example.com',
+      name: 'Socio',
+      link: 'https://ludus-gym-plataforma.vercel.app/verify-email?token=abc',
+      platform: 'mobile',
+    })
+
+    expect(mocks[0]?.to).toEqual(['dueno@example.com'])
+    expect(mocks[0]?.text).toContain('Cuenta: socio@example.com')
   })
 
   it('en desarrollo mantiene la bandeja de prueba e identifica la cuenta real', async () => {
