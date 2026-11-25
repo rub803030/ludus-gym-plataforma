@@ -6,21 +6,23 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ludus.gym.data.demo.DemoCatalog
+import com.ludus.gym.data.remote.ApiErrorMessages
 import com.ludus.gym.domain.model.EmailNotVerifiedException
 import com.ludus.gym.domain.model.Member
 import com.ludus.gym.domain.usecase.LoginUseCase
 import com.ludus.gym.domain.usecase.ResendVerificationUseCase
 import com.ludus.gym.domain.usecase.VerifyEmailUseCase
 import kotlinx.coroutines.launch
-import java.io.IOException
 
 class LoginViewModel(
     private val login: LoginUseCase,
     private val verifyEmail: VerifyEmailUseCase,
     private val resendVerification: ResendVerificationUseCase,
+    initialEmail: String = DemoCatalog.DEMO_EMAIL,
+    initialDevLink: String? = null,
 ) : ViewModel() {
 
-    var email by mutableStateOf(DemoCatalog.DEMO_EMAIL)
+    var email by mutableStateOf(initialEmail)
         private set
     var password by mutableStateOf(DemoCatalog.DEMO_PASSWORD)
         private set
@@ -39,6 +41,21 @@ class LoginViewModel(
         private set
     var verificationDone by mutableStateOf(false)
         private set
+    var devLink by mutableStateOf<String?>(initialDevLink)
+        private set
+
+    /** Prepara la pantalla de verificación tras un registro correcto. */
+    fun prepareVerification(email: String, devToken: String?, devLink: String?) {
+        this.email = email.trim()
+        this.devLink = devLink
+        verificationRequired = true
+        verificationDone = false
+        verificationMessage = if (devToken.isNullOrBlank()) {
+            "Te enviamos un enlace a $email. Pégalo abajo para confirmar tu correo."
+        } else {
+            "Modo desarrollo: usa el código enviado a $email o pégalo abajo."
+        }
+    }
 
     fun onEmailChange(value: String) {
         email = value
@@ -112,9 +129,8 @@ class LoginViewModel(
     }
 
     private fun Throwable.readableMessage(): String = when (this) {
-        is IOException -> "Sin conexión. Revisa tu red o usa la credencial de demostración."
         is IllegalArgumentException -> message ?: "Revisa los datos introducidos."
         is EmailNotVerifiedException -> message ?: "Tu correo aún no está verificado."
-        else -> message?.takeIf { it.isNotBlank() } ?: "No pudimos completar la operación. Inténtalo de nuevo."
+        else -> ApiErrorMessages.readable(this)
     }
 }

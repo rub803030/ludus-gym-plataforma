@@ -10,6 +10,8 @@ import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.RoomDatabase
 import androidx.room.Upsert
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
 
 @Entity(tableName = "cached_members")
@@ -21,6 +23,22 @@ data class MemberEntity(
     val planName: String,
     val daysRemaining: Int,
     val cachedAt: Long,
+    val gymId: String? = null,
+)
+
+@Entity(tableName = "gyms")
+data class GymEntity(
+    @PrimaryKey val id: String,
+    val name: String,
+    val publicCode: String? = null,
+    val status: String = "ACTIVE",
+    val cachedAt: Long = 0L,
+)
+
+@Entity(tableName = "active_gym")
+data class ActiveGymEntity(
+    @PrimaryKey val id: String = "active",
+    val gymId: String,
 )
 
 @Entity(tableName = "routines")
@@ -53,6 +71,7 @@ data class QrCredentialEntity(
     val expiresAtMillis: Long,
     val raw: String,
     val cachedAt: Long,
+    val gymId: String? = null,
 )
 
 @Entity(tableName = "pending_sync")
@@ -83,6 +102,30 @@ interface LudusDao {
 
     @Upsert
     suspend fun saveMember(member: MemberEntity)
+
+    @Query("SELECT * FROM gyms ORDER BY name ASC")
+    fun observeGyms(): Flow<List<GymEntity>>
+
+    @Query("SELECT * FROM gyms ORDER BY name ASC")
+    suspend fun gymsOnce(): List<GymEntity>
+
+    @Upsert
+    suspend fun saveGyms(gyms: List<GymEntity>)
+
+    @Query("SELECT * FROM active_gym WHERE id = 'active'")
+    fun observeActiveGym(): Flow<ActiveGymEntity?>
+
+    @Query("SELECT * FROM active_gym WHERE id = 'active'")
+    suspend fun activeGym(): ActiveGymEntity?
+
+    @Upsert
+    suspend fun saveActiveGym(active: ActiveGymEntity)
+
+    @Query("DELETE FROM active_gym")
+    suspend fun clearActiveGym()
+
+    @Query("DELETE FROM gyms")
+    suspend fun clearGyms()
 
     @Query("SELECT * FROM routines ORDER BY dayOfWeek ASC")
     fun observeRoutines(): Flow<List<RoutineEntity>>
@@ -139,15 +182,37 @@ interface LudusDao {
 @Database(
     entities = [
         MemberEntity::class,
+        GymEntity::class,
+        ActiveGymEntity::class,
         RoutineEntity::class,
         WorkoutLogEntity::class,
         QrCredentialEntity::class,
         PendingSyncEntity::class,
         AccessEventEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun dao(): LudusDao
+}
+
+val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE cached_members ADD COLUMN gymId TEXT")
+        db.execSQL("ALTER TABLE qr_credentials ADD COLUMN gymId TEXT")
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS gyms (" +
+                "id TEXT PRIMARY KEY NOT NULL, " +
+                "name TEXT NOT NULL, " +
+                "publicCode TEXT, " +
+                "status TEXT NOT NULL, " +
+                "cachedAt INTEGER NOT NULL)",
+        )
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS active_gym (" +
+                "id TEXT PRIMARY KEY NOT NULL, " +
+                "gymId TEXT NOT NULL)",
+        )
+    }
 }

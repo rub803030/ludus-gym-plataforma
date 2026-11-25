@@ -36,8 +36,8 @@ android {
     applicationId = "com.ludus.gym"
     minSdk = 26
     targetSdk = 35
-    versionCode = 3
-    versionName = "0.1.2"
+    versionCode = 4
+    versionName = "0.2.0"
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
   }
@@ -106,6 +106,12 @@ dependencies {
   implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
   implementation("com.google.zxing:core:3.5.3")
+  val cameraXVersion = "1.3.4"
+  implementation("androidx.camera:camera-core:$cameraXVersion")
+  implementation("androidx.camera:camera-camera2:$cameraXVersion")
+  implementation("androidx.camera:camera-view:$cameraXVersion")
+  implementation("androidx.camera:camera-lifecycle:$cameraXVersion")
+  implementation("com.google.mlkit:barcode-scanning:17.3.0")
   implementation("androidx.work:work-runtime-ktx:2.9.1")
   implementation("androidx.core:core-splashscreen:1.0.1")
 

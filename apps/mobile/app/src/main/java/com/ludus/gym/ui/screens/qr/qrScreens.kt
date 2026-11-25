@@ -44,11 +44,17 @@ import com.ludus.gym.ui.theme.Volt
 fun QrScreen(
     viewModel: QrViewModel,
     onBack: () -> Unit,
+    onMyGyms: () -> Unit,
 ) {
     val ticket by viewModel.ticket.collectAsStateWithLifecycle()
+    val activeGymId by viewModel.activeGymId.collectAsStateWithLifecycle()
+    val gyms by viewModel.gyms.collectAsStateWithLifecycle()
     val token = ticket?.token
     val clipboard = LocalClipboardManager.current
     val seconds = ticket?.secondsRemaining(viewModel.nowMillis) ?: 0
+    val gymName = gyms.firstOrNull { it.id == (ticket?.gymId ?: activeGymId) }?.name
+        ?: activeGymId?.takeIf { it.isNotBlank() }?.let { "Gimnasio activo" }
+        ?: "Sin gimnasio vinculado"
 
     Column(
         modifier = Modifier
@@ -63,6 +69,11 @@ fun QrScreen(
             text = "Muestra este código en el torniquete. Se renueva automáticamente.",
             style = MaterialTheme.typography.bodyMedium,
             color = Muted,
+        )
+        Text(
+            text = "Gimnasio: $gymName",
+            style = MaterialTheme.typography.labelLarge,
+            color = if (activeGymId.isNullOrBlank()) Ignition else Emerald,
         )
 
         val bitmap = remember(token) { token?.let(::generateQrBitmap) }
@@ -132,6 +143,7 @@ fun QrScreen(
             variant = LudusButtonVariant.GHOST,
             enabled = !token.isNullOrBlank(),
         )
+        LudusButton(text = "Mis gimnasios", onClick = onMyGyms, variant = LudusButtonVariant.GHOST)
         LudusButton(text = "Volver", onClick = onBack, variant = LudusButtonVariant.GHOST)
     }
 }

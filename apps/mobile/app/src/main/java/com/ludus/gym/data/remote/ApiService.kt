@@ -3,18 +3,26 @@ package com.ludus.gym.data.remote
 import com.ludus.gym.data.remote.dto.AccessEventRequestDto
 import com.ludus.gym.data.remote.dto.BookResponseDto
 import com.ludus.gym.data.remote.dto.ClassDto
+import com.ludus.gym.data.remote.dto.JoinGymRequestDto
+import com.ludus.gym.data.remote.dto.JoinGymResponseDto
 import com.ludus.gym.data.remote.dto.LoginRequestDto
 import com.ludus.gym.data.remote.dto.LoginResponseDto
 import com.ludus.gym.data.remote.dto.MeDto
 import com.ludus.gym.data.remote.dto.MemberDto
+import com.ludus.gym.data.remote.dto.MyGymsDto
 import com.ludus.gym.data.remote.dto.NutritionPlanDto
 import com.ludus.gym.data.remote.dto.OccupancyDto
 import com.ludus.gym.data.remote.dto.PaymentDto
 import com.ludus.gym.data.remote.dto.QrTokenDto
+import com.ludus.gym.data.remote.dto.QrTokenRequestDto
 import com.ludus.gym.data.remote.dto.RefreshRequestDto
 import com.ludus.gym.data.remote.dto.RefreshResponseDto
+import com.ludus.gym.data.remote.dto.RegisterMemberRequestDto
+import com.ludus.gym.data.remote.dto.RegisterMemberResponseDto
 import com.ludus.gym.data.remote.dto.ResendVerificationRequestDto
 import com.ludus.gym.data.remote.dto.RoutineDto
+import com.ludus.gym.data.remote.dto.SwitchGymRequestDto
+import com.ludus.gym.data.remote.dto.SwitchGymResponseDto
 import com.ludus.gym.data.remote.dto.VerifyEmailRequestDto
 import com.ludus.gym.data.remote.dto.VerifyEmailResponseDto
 import com.ludus.gym.data.remote.dto.WorkoutLogRequestDto
@@ -38,8 +46,20 @@ interface ApiService {
     @GET("api/auth/me")
     suspend fun me(): MeDto
 
+    @POST("api/members/register")
+    suspend fun registerMember(@Body request: RegisterMemberRequestDto): RegisterMemberResponseDto
+
+    @POST("api/members/join-gym")
+    suspend fun joinGym(@Body request: JoinGymRequestDto): JoinGymResponseDto
+
+    @POST("api/members/switch-gym")
+    suspend fun switchGym(@Body request: SwitchGymRequestDto): SwitchGymResponseDto
+
+    @GET("api/members/my-gyms")
+    suspend fun myGyms(): MyGymsDto
+
     @POST("api/access/qr-token")
-    suspend fun qrToken(): QrTokenDto
+    suspend fun qrToken(@Body request: QrTokenRequestDto): QrTokenDto
 
     @POST("api/access/events")
     suspend fun recordAccessEvent(@Body request: AccessEventRequestDto)

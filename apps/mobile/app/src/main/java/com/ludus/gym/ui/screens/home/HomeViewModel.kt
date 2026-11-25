@@ -9,6 +9,8 @@ import com.ludus.gym.data.demo.DemoCatalog
 import com.ludus.gym.domain.model.Member
 import com.ludus.gym.domain.model.Occupancy
 import com.ludus.gym.domain.usecase.GetCachedProfileUseCase
+import com.ludus.gym.domain.usecase.ObserveActiveGymUseCase
+import com.ludus.gym.domain.usecase.ObserveGymsUseCase
 import com.ludus.gym.domain.usecase.GetOccupancyUseCase
 import com.ludus.gym.domain.usecase.GetProfileUseCase
 import com.ludus.gym.domain.usecase.LogoutUseCase
@@ -19,6 +21,8 @@ import kotlinx.coroutines.launch
 
 class HomeViewModel(
     observeProfile: ObserveProfileUseCase,
+    observeActiveGym: ObserveActiveGymUseCase,
+    observeGyms: ObserveGymsUseCase,
     private val getCachedProfile: GetCachedProfileUseCase,
     private val getProfile: GetProfileUseCase,
     private val getOccupancy: GetOccupancyUseCase,
@@ -27,6 +31,8 @@ class HomeViewModel(
 ) : ViewModel() {
 
     val member = observeProfile().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    val activeGymId = observeActiveGym().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    val gyms = observeGyms().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     var fallbackMember by mutableStateOf<Member?>(null)
         private set

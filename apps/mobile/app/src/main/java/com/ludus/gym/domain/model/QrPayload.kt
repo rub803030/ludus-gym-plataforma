@@ -25,6 +25,7 @@ object QrPayload {
         return ParsedQr(
             raw = raw,
             memberId = stringField(json, "memberId"),
+            gymId = stringField(json, "gymId"),
             expiresAtMillis = expiresAtMillis,
             kind = stringField(json, "kind"),
         )
@@ -53,6 +54,7 @@ object QrPayload {
 data class ParsedQr(
     val raw: String,
     val memberId: String,
+    val gymId: String,
     val expiresAtMillis: Long,
     val kind: String,
 )
@@ -62,6 +64,7 @@ data class QrTicket(
     val validUntilMillis: Long,
     val offline: Boolean = false,
     val serverExpiresAt: String? = null,
+    val gymId: String? = null,
 ) {
     fun secondsRemaining(nowMillis: Long = System.currentTimeMillis()): Long =
         ((validUntilMillis - nowMillis) / 1000L).coerceAtLeast(0L)

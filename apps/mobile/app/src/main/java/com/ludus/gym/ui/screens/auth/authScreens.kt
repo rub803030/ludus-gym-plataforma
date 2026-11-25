@@ -32,11 +32,13 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.ludus.gym.di.AppContainer
 import com.ludus.gym.domain.model.Member
+import com.ludus.gym.domain.model.RegistrationResult
 
 @Composable
 fun LoginScreen(
     viewModel: LoginViewModel,
     onLoggedIn: (Member) -> Unit,
+    onRegister: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -100,8 +102,116 @@ fun LoginScreen(
         }
         viewModel.errorMessage?.takeIf { !viewModel.verificationRequired }?.let { StatusText(it) }
 
+        TextButton(onClick = onRegister, modifier = Modifier.fillMaxWidth()) {
+            Text("Crear cuenta")
+        }
+
         if (viewModel.verificationRequired) {
             VerificationPanel(viewModel = viewModel)
+        }
+    }
+}
+
+@Composable
+fun RegisterScreen(
+    viewModel: RegisterViewModel,
+    onRegistered: (RegistrationResult) -> Unit,
+    onBack: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(24.dp),
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text("Ludus.", style = MaterialTheme.typography.displaySmall, color = MaterialTheme.colorScheme.primary)
+        Text(
+            "Crear cuenta de socio",
+            style = MaterialTheme.typography.headlineSmall,
+            modifier = Modifier.padding(top = 12.dp),
+        )
+        Text(
+            "Después de confirmar tu correo podrás vincular tu gimnasio.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 8.dp),
+        )
+
+        Spacer(Modifier.height(20.dp))
+        OutlinedTextField(
+            value = viewModel.firstName,
+            onValueChange = viewModel::onFirstNameChange,
+            label = { Text("Nombre") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(10.dp))
+        OutlinedTextField(
+            value = viewModel.lastName,
+            onValueChange = viewModel::onLastNameChange,
+            label = { Text("Apellidos") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(10.dp))
+        OutlinedTextField(
+            value = viewModel.email,
+            onValueChange = viewModel::onEmailChange,
+            label = { Text("Correo") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(10.dp))
+        OutlinedTextField(
+            value = viewModel.password,
+            onValueChange = viewModel::onPasswordChange,
+            label = { Text("Contraseña (mínimo 12 caracteres)") },
+            singleLine = true,
+            visualTransformation = if (viewModel.passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+            trailingIcon = {
+                TextButton(onClick = viewModel::togglePasswordVisibility) {
+                    Text(if (viewModel.passwordVisible) "Ocultar" else "Ver")
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(10.dp))
+        OutlinedTextField(
+            value = viewModel.phone,
+            onValueChange = viewModel::onPhoneChange,
+            label = { Text("Teléfono (opcional)") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(10.dp))
+        OutlinedTextField(
+            value = viewModel.documentNumber,
+            onValueChange = viewModel::onDocumentNumberChange,
+            label = { Text("Documento (opcional)") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(10.dp))
+        OutlinedTextField(
+            value = viewModel.birthDate,
+            onValueChange = viewModel::onBirthDateChange,
+            label = { Text("Nacimiento AAAA-MM-DD (opcional)") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+
+        Spacer(Modifier.height(18.dp))
+        Button(
+            onClick = { viewModel.submit(onRegistered) },
+            enabled = !viewModel.isLoading,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(if (viewModel.isLoading) "Creando cuenta…" else "Crear cuenta")
+        }
+        viewModel.errorMessage?.let { StatusText(it) }
+        TextButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
+            Text("Volver al inicio de sesión")
         }
     }
 }
@@ -111,6 +221,7 @@ fun VerifyEmailScreen(
     viewModel: LoginViewModel,
     token: String?,
     onBack: () -> Unit,
+    onVerified: () -> Unit = onBack,
 ) {
     Column(
         modifier = Modifier
@@ -128,24 +239,39 @@ fun VerifyEmailScreen(
         Spacer(Modifier.height(24.dp))
         VerificationPanel(viewModel = viewModel, token = token)
         Spacer(Modifier.height(12.dp))
+        if (viewModel.verificationDone) {
+            Button(onClick = onVerified, modifier = Modifier.fillMaxWidth()) {
+                Text("Ir a iniciar sesión")
+            }
+        }
         TextButton(onClick = onBack) { Text("Volver al inicio de sesión") }
     }
 }
 
 @Composable
-private fun VerificationPanel(
+fun VerificationPanel(
     viewModel: LoginViewModel,
     token: String? = null,
 ) {
     val context = LocalContext.current
     var code by remember { mutableStateOf("") }
 
-    LaunchedEffect(token) {
-        if (!token.isNullOrBlank()) viewModel.consumeDeepLinkToken(token)
+    LaunchedEffect(token, viewModel.devLink) {
+        when {
+            !token.isNullOrBlank() -> {
+                code = token
+                viewModel.consumeDeepLinkToken(token)
+            }
+            !viewModel.devLink.isNullOrBlank() -> code = viewModel.devLink.orEmpty()
+        }
     }
 
     Spacer(Modifier.height(20.dp))
-    StatusText("Tu correo no está verificado. Confirma el enlace para poder entrar.", success = false)
+    StatusText(
+        text = viewModel.verificationMessage?.takeIf { !viewModel.verificationDone }
+            ?: "Tu correo no está verificado. Confirma el enlace para poder entrar.",
+        success = false,
+    )
 
     OutlinedTextField(
         value = code,

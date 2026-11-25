@@ -15,6 +15,8 @@ data class MemberDto(
     @Json(name = "planName") val planName: String? = null,
     @Json(name = "plan") val plan: String? = null,
     @Json(name = "daysRemaining") val daysRemaining: Int? = null,
+    @Json(name = "gymId") val gymId: String? = null,
+    @Json(name = "activeGymId") val activeGymId: String? = null,
 ) {
     fun identifier(): String? = id ?: memberId
 }
@@ -38,5 +40,6 @@ fun MemberDto.toDomain(fallbackId: String? = null): Member {
         membershipStatus = parseMembershipStatus(membershipStatus ?: status),
         planName = planName ?: plan ?: "Ludus Pro",
         daysRemaining = daysRemaining ?: 28,
+        activeGymId = activeGymId ?: gymId,
     )
 }

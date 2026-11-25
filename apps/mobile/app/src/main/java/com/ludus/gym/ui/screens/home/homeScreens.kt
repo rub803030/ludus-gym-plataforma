@@ -48,13 +48,20 @@ fun HomeScreen(
     onWorkout: () -> Unit,
     onNutrition: () -> Unit,
     onBookings: () -> Unit,
+    onLinkGym: () -> Unit,
+    onMyGyms: () -> Unit,
     onExit: () -> Unit,
 ) {
     val profile by viewModel.member.collectAsStateWithLifecycle()
+    val activeGymId by viewModel.activeGymId.collectAsStateWithLifecycle()
+    val gyms by viewModel.gyms.collectAsStateWithLifecycle()
     val member = profile ?: viewModel.fallbackMember
     val name = member?.name?.takeIf { it.isNotBlank() } ?: fallbackName
     val isActive = member?.isActive == true
     val occupancy = viewModel.occupancy
+    val activeGymName = gyms.firstOrNull { it.id == activeGymId }?.name
+        ?: member?.activeGymId?.takeIf { it == activeGymId }?.let { "Gimnasio activo" }
+        ?: "Sin gimnasio vinculado"
 
     Column(
         modifier = Modifier
@@ -81,6 +88,11 @@ fun HomeScreen(
                 )
                 StatusPill(text = "${member?.daysRemaining ?: 0} días", color = Volt)
             }
+            Spacer(Modifier.height(10.dp))
+            StatusPill(
+                text = if (activeGymId.isNullOrBlank()) activeGymName else "Gimnasio: $activeGymName",
+                color = if (activeGymId.isNullOrBlank()) Ignition else Emerald,
+            )
         }
 
         LudusCard {
@@ -133,6 +145,11 @@ fun HomeScreen(
             onClick = onBookings,
             variant = LudusButtonVariant.SECONDARY,
             leadingIcon = Icons.Filled.CalendarMonth,
+        )
+        LudusButton(
+            text = if (activeGymId.isNullOrBlank()) "Vincular gimnasio" else "Mis gimnasios",
+            onClick = if (activeGymId.isNullOrBlank()) onLinkGym else onMyGyms,
+            variant = LudusButtonVariant.SECONDARY,
         )
         LudusButton(
             text = "Cerrar sesión",

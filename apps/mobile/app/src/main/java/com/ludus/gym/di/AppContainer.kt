@@ -5,6 +5,7 @@ import androidx.room.Room
 import androidx.work.WorkManager
 import com.ludus.gym.BuildConfig
 import com.ludus.gym.data.local.AppDatabase
+import com.ludus.gym.data.local.MIGRATION_2_3
 import com.ludus.gym.data.local.SecureTokenStore
 import com.ludus.gym.data.local.SyncWorker
 import com.ludus.gym.data.remote.ApiService
@@ -14,10 +15,13 @@ import com.ludus.gym.data.remote.RefreshApiService
 import com.ludus.gym.data.remote.TokenAuthenticator
 import com.ludus.gym.data.repository.AuthRepository
 import com.ludus.gym.data.repository.BookingRepository
+import com.ludus.gym.data.repository.DefaultGymRepository
+import com.ludus.gym.data.repository.GymRepository
 import com.ludus.gym.data.repository.MemberRepository
 import com.ludus.gym.data.repository.NutritionRepository
 import com.ludus.gym.data.repository.PaymentRepository
 import com.ludus.gym.data.repository.QrRepository
+import com.ludus.gym.data.repository.RegistrationRepository
 import com.ludus.gym.data.repository.WorkoutRepository
 import com.ludus.gym.domain.usecase.BookClassUseCase
 import com.ludus.gym.domain.usecase.CancelBookingUseCase
@@ -26,7 +30,10 @@ import com.ludus.gym.domain.usecase.GetOccupancyUseCase
 import com.ludus.gym.domain.usecase.GetProfileUseCase
 import com.ludus.gym.domain.usecase.GetQrUseCase
 import com.ludus.gym.domain.usecase.GetTodayRoutineUseCase
+import com.ludus.gym.domain.usecase.JoinGymUseCase
 import com.ludus.gym.domain.usecase.LogWorkoutUseCase
+import com.ludus.gym.domain.usecase.ObserveActiveGymUseCase
+import com.ludus.gym.domain.usecase.ObserveGymsUseCase
 import com.ludus.gym.domain.usecase.LoginUseCase
 import com.ludus.gym.domain.usecase.LogoutUseCase
 import com.ludus.gym.domain.usecase.ObserveClassesUseCase
@@ -38,10 +45,13 @@ import com.ludus.gym.domain.usecase.ObserveReceiptsUseCase
 import com.ludus.gym.domain.usecase.ObserveRoutinesUseCase
 import com.ludus.gym.domain.usecase.RecordAccessUseCase
 import com.ludus.gym.domain.usecase.RefreshClassesUseCase
+import com.ludus.gym.domain.usecase.RefreshMyGymsUseCase
 import com.ludus.gym.domain.usecase.RefreshNutritionUseCase
 import com.ludus.gym.domain.usecase.RefreshReceiptsUseCase
 import com.ludus.gym.domain.usecase.RefreshRoutinesUseCase
+import com.ludus.gym.domain.usecase.RegisterMemberUseCase
 import com.ludus.gym.domain.usecase.ResendVerificationUseCase
+import com.ludus.gym.domain.usecase.SwitchGymUseCase
 import com.ludus.gym.domain.usecase.VerifyEmailUseCase
 import com.ludus.gym.domain.usecase.VerifyQrLocallyUseCase
 import com.squareup.moshi.Moshi
@@ -69,6 +79,7 @@ class AppContainer(context: Context) {
         .build()
 
     private val database = Room.databaseBuilder(appContext, AppDatabase::class.java, "ludus-gym.db")
+        .addMigrations(MIGRATION_2_3)
         .fallbackToDestructiveMigration()
         .build()
 
@@ -105,8 +116,10 @@ class AppContainer(context: Context) {
     }
 
     private val memberRepository = MemberRepository(api, dao)
-    val authRepository = AuthRepository(api, tokens, memberRepository, network, moshi)
+    val authRepository = AuthRepository(api, tokens, memberRepository, network, dao)
     val qrRepository = QrRepository(api, dao, tokens, network)
+    private val registrationRepository = RegistrationRepository(api)
+    val gymRepository: GymRepository = DefaultGymRepository(api, tokens, dao)
     val workoutRepository = WorkoutRepository(api, dao, moshi, appContext)
     private val nutritionRepository = NutritionRepository(api)
     private val bookingRepository = BookingRepository(api)
@@ -115,7 +128,13 @@ class AppContainer(context: Context) {
     val loginUseCase = LoginUseCase(authRepository)
     val verifyEmailUseCase = VerifyEmailUseCase(authRepository)
     val resendVerificationUseCase = ResendVerificationUseCase(authRepository)
+    val registerMemberUseCase = RegisterMemberUseCase(registrationRepository)
     val logoutUseCase = LogoutUseCase(authRepository)
+    val observeActiveGymUseCase = ObserveActiveGymUseCase(gymRepository)
+    val observeGymsUseCase = ObserveGymsUseCase(gymRepository)
+    val joinGymUseCase = JoinGymUseCase(gymRepository)
+    val refreshMyGymsUseCase = RefreshMyGymsUseCase(gymRepository)
+    val switchGymUseCase = SwitchGymUseCase(gymRepository)
     val getProfileUseCase = GetProfileUseCase(authRepository)
     val observeProfileUseCase = ObserveProfileUseCase(memberRepository)
     val getCachedProfileUseCase = GetCachedProfileUseCase(memberRepository)

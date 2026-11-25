@@ -6,6 +6,8 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ludus.gym.domain.usecase.GetQrUseCase
+import com.ludus.gym.domain.usecase.ObserveActiveGymUseCase
+import com.ludus.gym.domain.usecase.ObserveGymsUseCase
 import com.ludus.gym.domain.usecase.ObserveQrUseCase
 import com.ludus.gym.domain.usecase.RecordAccessUseCase
 import kotlinx.coroutines.delay
@@ -15,11 +17,16 @@ import kotlinx.coroutines.launch
 
 class QrViewModel(
     observeQr: ObserveQrUseCase,
+    observeActiveGym: ObserveActiveGymUseCase,
+    observeGyms: ObserveGymsUseCase,
     private val getQr: GetQrUseCase,
     private val recordAccess: RecordAccessUseCase,
+    private val readableError: (Throwable) -> String,
 ) : ViewModel() {
 
     val ticket = observeQr().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    val activeGymId = observeActiveGym().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    val gyms = observeGyms().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     var nowMillis by mutableStateOf(System.currentTimeMillis())
         private set
@@ -47,9 +54,7 @@ class QrViewModel(
             isRefreshing = true
             getQr()
                 .onSuccess { message = null }
-                .onFailure {
-                    message = "Sin conexión: se muestra el último pase offline guardado."
-                }
+                .onFailure { message = readableError(it) }
             isRefreshing = false
         }
     }

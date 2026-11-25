@@ -60,6 +60,8 @@ class TokenAuthenticator(
                 accessToken = newAccessToken,
                 refreshToken = refreshed.refreshToken?.takeIf { it.isNotBlank() } ?: refreshToken,
                 memberId = tokens.memberId().orEmpty(),
+                // El refresh no cambia de gimnasio: conservar el contexto evita NO_GYM.
+                activeGymId = tokens.activeGymId(),
             )
             response.request.newBuilder()
                 .header("Authorization", "Bearer $newAccessToken")

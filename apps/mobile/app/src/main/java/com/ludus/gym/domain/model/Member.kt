@@ -9,6 +9,7 @@ data class Member(
     val membershipStatus: MembershipStatus = MembershipStatus.ACTIVE,
     val planName: String = "Ludus Pro",
     val daysRemaining: Int = 0,
+    val activeGymId: String? = null,
     val initials: String = name.take(2).uppercase(),
 ) {
     val isActive: Boolean get() = membershipStatus == MembershipStatus.ACTIVE
@@ -26,4 +27,5 @@ data class Session(
     val accessToken: String,
     val refreshToken: String,
     val memberId: String,
+    val activeGymId: String? = null,
 )

@@ -11,9 +11,16 @@ import androidx.navigation.navArgument
 import com.ludus.gym.LudusApplication
 import com.ludus.gym.ui.screens.auth.LoginScreen
 import com.ludus.gym.ui.screens.auth.LoginViewModel
+import com.ludus.gym.ui.screens.auth.RegisterScreen
+import com.ludus.gym.ui.screens.auth.RegisterViewModel
 import com.ludus.gym.ui.screens.auth.VerifyEmailScreen
 import com.ludus.gym.ui.screens.bookings.BookingViewModel
 import com.ludus.gym.ui.screens.bookings.BookingsScreen
+import com.ludus.gym.ui.screens.gym.GymQrScannerScreen
+import com.ludus.gym.ui.screens.gym.LinkGymScreen
+import com.ludus.gym.ui.screens.gym.LinkGymViewModel
+import com.ludus.gym.ui.screens.gym.MyGymsScreen
+import com.ludus.gym.ui.screens.gym.MyGymsViewModel
 import com.ludus.gym.ui.screens.home.HomeScreen
 import com.ludus.gym.ui.screens.home.HomeViewModel
 import com.ludus.gym.ui.screens.nutrition.NutritionScreen
@@ -25,40 +32,89 @@ import com.ludus.gym.ui.screens.workout.WorkoutViewModel
 import com.ludus.gym.ui.viewModelFactory
 
 private const val HOME_ROUTE = "home/{memberId}?name={name}"
+private const val VERIFY_ROUTE = "verificacion_correo?token={token}"
 
 @Composable
 fun LudusNavHost(deepLinkToken: String? = null) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val container = (context.applicationContext as LudusApplication).container
     val navController = rememberNavController()
-    val startDestination = if (deepLinkToken.isNullOrBlank()) {
-        "login"
-    } else {
-        "verify_email?token=${Uri.encode(deepLinkToken)}"
+
+    val loginViewModel: LoginViewModel = viewModel(
+        factory = viewModelFactory {
+            LoginViewModel(
+                login = container.loginUseCase,
+                verifyEmail = container.verifyEmailUseCase,
+                resendVerification = container.resendVerificationUseCase,
+            )
+        },
+    )
+    val linkGymViewModel: LinkGymViewModel = viewModel(
+        factory = viewModelFactory { LinkGymViewModel(container.joinGymUseCase) },
+    )
+
+    fun homeRoute(): String {
+        val memberId = container.tokens.memberId()?.takeIf { it.isNotBlank() } ?: "member-demo"
+        return "home/${Uri.encode(memberId)}?name="
+    }
+
+    fun goHome() {
+        navController.navigate(homeRoute()) {
+            popUpTo("vincular_gimnasio") { inclusive = true }
+            launchSingleTop = true
+        }
+    }
+
+    val startDestination = when {
+        !deepLinkToken.isNullOrBlank() ->
+            "verificacion_correo?token=${Uri.encode(deepLinkToken)}"
+        container.tokens.hasSession() && !container.tokens.memberId().isNullOrBlank() &&
+            !container.tokens.activeGymId().isNullOrBlank() -> homeRoute()
+        container.tokens.hasSession() -> "vincular_gimnasio"
+        else -> "login"
     }
 
     NavHost(navController = navController, startDestination = startDestination) {
         composable("login") {
-            val factory = viewModelFactory {
-                LoginViewModel(
-                    login = container.loginUseCase,
-                    verifyEmail = container.verifyEmailUseCase,
-                    resendVerification = container.resendVerificationUseCase,
-                )
-            }
-            val viewModel: LoginViewModel = viewModel(factory = factory)
             LoginScreen(
-                viewModel = viewModel,
+                viewModel = loginViewModel,
                 onLoggedIn = { member ->
-                    navController.navigate("home/${Uri.encode(member.id)}?name=${Uri.encode(member.name)}") {
-                        popUpTo("login") { inclusive = true }
+                    val sinGimnasio = member.activeGymId.isNullOrBlank() &&
+                        container.tokens.activeGymId().isNullOrBlank()
+                    if (sinGimnasio) {
+                        navController.navigate("vincular_gimnasio") {
+                            popUpTo("login") { inclusive = true }
+                        }
+                    } else {
+                        navController.navigate(homeRoute()) {
+                            popUpTo("login") { inclusive = true }
+                            launchSingleTop = true
+                        }
                     }
                 },
+                onRegister = { navController.navigate("registro") },
+            )
+        }
+
+        composable("registro") {
+            val factory = viewModelFactory {
+                RegisterViewModel(registerMember = container.registerMemberUseCase)
+            }
+            val viewModel: RegisterViewModel = viewModel(factory = factory)
+            RegisterScreen(
+                viewModel = viewModel,
+                onRegistered = { result ->
+                    loginViewModel.prepareVerification(result.email, result.devToken, result.devLink)
+                    navController.navigate("verificacion_correo") {
+                        popUpTo("registro") { inclusive = true }
+                    }
+                },
+                onBack = { navController.popBackStack() },
             )
         }
 
         composable(
-            route = "verify_email?token={token}",
+            route = VERIFY_ROUTE,
             arguments = listOf(
                 navArgument("token") {
                     type = NavType.StringType
@@ -67,18 +123,51 @@ fun LudusNavHost(deepLinkToken: String? = null) {
                 },
             ),
         ) { backStackEntry ->
+            VerifyEmailScreen(
+                viewModel = loginViewModel,
+                token = backStackEntry.arguments?.getString("token"),
+                onBack = { navController.popBackStack() },
+                onVerified = {
+                    navController.navigate("login") {
+                        popUpTo(VERIFY_ROUTE) { inclusive = true }
+                    }
+                },
+            )
+        }
+
+        composable("vincular_gimnasio") {
+            LinkGymScreen(
+                viewModel = linkGymViewModel,
+                onBack = { navController.popBackStack() },
+                onScan = { navController.navigate("escanear_qr_gimnasio") },
+                onMyGyms = { navController.navigate("mis_gimnasios") },
+                onHome = { goHome() },
+            )
+        }
+
+        composable("escanear_qr_gimnasio") {
+            GymQrScannerScreen(
+                onDetected = { raw ->
+                    linkGymViewModel.onScanned(raw) { goHome() }
+                },
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable("mis_gimnasios") {
             val factory = viewModelFactory {
-                LoginViewModel(
-                    login = container.loginUseCase,
-                    verifyEmail = container.verifyEmailUseCase,
-                    resendVerification = container.resendVerificationUseCase,
+                MyGymsViewModel(
+                    observeGyms = container.observeGymsUseCase,
+                    observeActiveGym = container.observeActiveGymUseCase,
+                    refreshMyGyms = container.refreshMyGymsUseCase,
+                    switchGym = container.switchGymUseCase,
                 )
             }
-            val viewModel: LoginViewModel = viewModel(factory = factory)
-            VerifyEmailScreen(
+            val viewModel: MyGymsViewModel = viewModel(factory = factory)
+            MyGymsScreen(
                 viewModel = viewModel,
-                token = backStackEntry.arguments?.getString("token"),
-                onBack = { navController.navigate("login") { popUpTo("verify_email?token={token}") { inclusive = true } } },
+                onBack = { navController.popBackStack() },
+                onLinkGym = { navController.navigate("vincular_gimnasio") },
             )
         }
 
@@ -95,6 +184,8 @@ fun LudusNavHost(deepLinkToken: String? = null) {
             val factory = viewModelFactory {
                 HomeViewModel(
                     observeProfile = container.observeProfileUseCase,
+                    observeActiveGym = container.observeActiveGymUseCase,
+                    observeGyms = container.observeGymsUseCase,
                     getCachedProfile = container.getCachedProfileUseCase,
                     getProfile = container.getProfileUseCase,
                     getOccupancy = container.getOccupancyUseCase,
@@ -110,6 +201,8 @@ fun LudusNavHost(deepLinkToken: String? = null) {
                 onWorkout = { navController.navigate("workout") },
                 onNutrition = { navController.navigate("nutrition") },
                 onBookings = { navController.navigate("bookings") },
+                onLinkGym = { navController.navigate("vincular_gimnasio") },
+                onMyGyms = { navController.navigate("mis_gimnasios") },
                 onExit = { navController.navigate("login") { popUpTo(HOME_ROUTE) { inclusive = true } } },
             )
         }
@@ -118,12 +211,19 @@ fun LudusNavHost(deepLinkToken: String? = null) {
             val factory = viewModelFactory {
                 QrViewModel(
                     observeQr = container.observeQrUseCase,
+                    observeActiveGym = container.observeActiveGymUseCase,
+                    observeGyms = container.observeGymsUseCase,
                     getQr = container.getQrUseCase,
                     recordAccess = container.recordAccessUseCase,
+                    readableError = container.qrRepository::readableError,
                 )
             }
             val viewModel: QrViewModel = viewModel(factory = factory)
-            QrScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+            QrScreen(
+                viewModel = viewModel,
+                onBack = { navController.popBackStack() },
+                onMyGyms = { navController.navigate("mis_gimnasios") },
+            )
         }
 
         composable("workout") {

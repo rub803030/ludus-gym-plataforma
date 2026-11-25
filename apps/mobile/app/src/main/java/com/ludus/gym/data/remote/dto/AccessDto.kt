@@ -2,6 +2,10 @@ package com.ludus.gym.data.remote.dto
 
 import com.squareup.moshi.Json
 
+data class QrTokenRequestDto(
+    @Json(name = "gymId") val gymId: String? = null,
+)
+
 data class QrTokenDto(
     @Json(name = "token") val token: String? = null,
     @Json(name = "qrToken") val qrToken: String? = null,
@@ -9,6 +13,8 @@ data class QrTokenDto(
     @Json(name = "expiresIn") val expiresIn: Long? = null,
     @Json(name = "validForSeconds") val validForSeconds: Long? = null,
     @Json(name = "offlineCredential") val offlineCredential: String? = null,
+    @Json(name = "bucket") val bucket: Long? = null,
+    @Json(name = "gymId") val gymId: String? = null,
 ) {
     fun value(): String? = token ?: qrToken
 }

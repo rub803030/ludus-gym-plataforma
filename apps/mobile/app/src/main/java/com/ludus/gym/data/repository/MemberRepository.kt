@@ -32,6 +32,7 @@ class MemberRepository(
                 membershipStatus = member.membershipStatus.name,
                 planName = member.planName,
                 daysRemaining = member.daysRemaining,
+                gymId = member.activeGymId,
                 cachedAt = System.currentTimeMillis(),
             ),
         )
@@ -70,6 +71,7 @@ class MemberRepository(
         membershipStatus = parseMembershipStatus(membershipStatus),
         planName = planName,
         daysRemaining = daysRemaining,
+        activeGymId = gymId,
     )
 }
 
@@ -82,5 +84,6 @@ private fun MeDto.toDomain(fallbackId: String?): Member {
         membershipStatus = parseMembershipStatus(membershipStatus),
         planName = planName ?: "Ludus Pro",
         daysRemaining = daysRemaining ?: 28,
+        activeGymId = activeGymId ?: gymId,
     )
 }
