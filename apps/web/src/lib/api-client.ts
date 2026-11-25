@@ -1,10 +1,15 @@
 import { apiUrl } from '@/config/env'
-import { asBoolean, asNumber, asRecord, asString, coalesce, normalizeAccessEvent, normalizeCashSession, normalizeMember, normalizeNutrition, normalizeOccupancy, normalizePaginated, normalizePayment, normalizePlan, normalizePrincipal, normalizeRoutine, normalizeStaff, normalizeSummary, normalizeAudit, pick } from '@/lib/normalize'
+import { asArray, asBoolean, asNumber, asRecord, asString, coalesce, normalizeAccessEvent, normalizeCashSession, normalizeGym, normalizeGymRegistration, normalizeGymVerification, normalizeMember, normalizeNutrition, normalizeOccupancy, normalizePaginated, normalizePayment, normalizePlan, normalizePrincipal, normalizeRoutine, normalizeStaff, normalizeSummary, normalizeAudit, pick } from '@/lib/normalize'
 import type {
   AccessEvent,
   ApiError,
   AuditLogView,
   CashSessionView,
+  GymProfile,
+  GymProfileInput,
+  GymRegisterInput,
+  GymRegistration,
+  GymVerification,
   NutritionPlanView,
   OccupancyView,
   Paginated,
@@ -99,7 +104,7 @@ export function createIdempotencyKey(): string {
  * Errors
  * ------------------------------------------------------------------ */
 
-function toApiError(status: number, body: unknown): ApiError {
+function toApiError(status: number, body: unknown, path = ''): ApiError {
   const r = asRecord(body)
   // La API serializa { error: { code, message, details } }. Aceptar también el
   // formato plano evita romper respuestas antiguas o de proxy.
@@ -118,8 +123,17 @@ function toApiError(status: number, body: unknown): ApiError {
     Number.parseInt(rawMessage.match(/(\d+)\s*(?:día|dia|day)/i)?.[1] ?? '0', 10)
   )
   let message: string
+  const isGymPath = path.startsWith('/api/gyms/')
 
-  if (
+  if (code === 'CROSS_GYM_PASS') {
+    message = rawMessage || 'Este pase pertenece a otro gimnasio'
+  } else if (isGymPath && (code === 'VERIFICATION_TOKEN_INVALID' || code === 'VERIFICATION_TOKEN_EXPIRED')) {
+    // La verificación de gimnasio conserva el mensaje de la API; el texto genérico
+    // de verificación de correo no aplica a este flujo.
+    message =
+      rawMessage ||
+      (code === 'VERIFICATION_TOKEN_EXPIRED' ? 'El enlace venció. Solicita uno nuevo' : 'El enlace no es válido o ya fue usado')
+  } else if (
     code === 'MEMBERSHIP_EXPIRED' ||
     code === 'MEMBER_EXPIRED' ||
     /vencid|expired/i.test(`${code} ${rawMessage}`)
@@ -291,7 +305,7 @@ export async function apiFetch<T>(path: string, init: ApiFetchInit = {}): Promis
   }
 
   const body = await parseBody(response)
-  if (!response.ok) throw toApiError(response.status, body)
+  if (!response.ok) throw toApiError(response.status, body, path)
   return body as T
 }
 
@@ -332,6 +346,43 @@ function normalizeVerification(raw: unknown): VerifyQrResult {
   }
 }
 
+const PLAN_FLAG_KEYS = ['gym_access', 'classes', 'nutrition', 'guest_pass'] as const
+
+function planFlagsFrom(value: unknown): Array<(typeof PLAN_FLAG_KEYS)[number]> {
+  const flags = asArray(value)
+    .map((flag) => (typeof flag === 'string' ? flag : asString(pick(asRecord(flag), 'key', 'name'))))
+    .filter((flag): flag is (typeof PLAN_FLAG_KEYS)[number] => (PLAN_FLAG_KEYS as readonly string[]).includes(flag))
+  return Array.from(new Set(flags))
+}
+
+/** Envía el contrato nuevo (flags/active) y el legado en el mismo cuerpo. */
+function buildPlanPayload(input: Record<string, unknown>): Record<string, unknown> {
+  const r = asRecord(input)
+  const flags = r.flags === undefined
+    ? PLAN_FLAG_KEYS.filter(
+        (key) =>
+          key === 'gym_access' ||
+          (key === 'classes' && asBoolean(pick(r, 'includesClasses'))) ||
+          (key === 'nutrition' && asBoolean(pick(r, 'includesNutrition')))
+      )
+    : planFlagsFrom(r.flags)
+  return {
+    ...r,
+    flags,
+    includesClasses: flags.includes('classes'),
+    includesNutrition: flags.includes('nutrition'),
+    active: asBoolean(coalesce(pick(r, 'active'), pick(r, 'isActive'), true)),
+    currency: asString(coalesce(pick(r, 'currency'), 'MXN')),
+  }
+}
+
+/** Las respuestas de alta/edición son parciales; se completan con lo enviado. */
+function normalizePlanResponse(raw: unknown, input?: Record<string, unknown>): PlanView {
+  if (!input) return normalizePlan(raw)
+  const response = asRecord(raw)
+  return normalizePlan({ ...asRecord(input), ...response })
+}
+
 export const api = {
   auth: {
     login(email: string, password: string): Promise<unknown> {
@@ -360,6 +411,33 @@ export const api = {
     },
     logout(): Promise<unknown> {
       return apiFetch('/api/auth/logout', { method: 'POST', retry: false })
+    },
+  },
+
+  gyms: {
+    async register(input: GymRegisterInput): Promise<GymRegistration> {
+      const raw = await apiFetch<unknown>('/api/gyms/register', {
+        method: 'POST',
+        retry: false,
+        body: JSON.stringify(input),
+      })
+      return normalizeGymRegistration(raw)
+    },
+    async verify(token: string): Promise<GymVerification> {
+      const raw = await apiFetch<unknown>('/api/gyms/verify', {
+        method: 'POST',
+        retry: false,
+        body: JSON.stringify({ token }),
+      })
+      return normalizeGymVerification(raw)
+    },
+    async me(): Promise<GymProfile> {
+      return normalizeGym(await apiFetch<unknown>('/api/gyms/me'))
+    },
+    async update(input: GymProfileInput): Promise<GymProfile> {
+      return normalizeGym(
+        await apiFetch<unknown>('/api/gyms/me', { method: 'PATCH', body: JSON.stringify(input) })
+      )
     },
   },
 
@@ -452,12 +530,17 @@ export const api = {
       return normalizePaginated(raw, normalizePlan, ['plans'])
     },
     async create(input: Record<string, unknown>): Promise<PlanView> {
-      return normalizePlan(await apiFetch<unknown>('/api/plans', { method: 'POST', body: JSON.stringify(input) }))
+      const payload = buildPlanPayload(input)
+      const raw = await apiFetch<unknown>('/api/plans', { method: 'POST', body: JSON.stringify(payload) })
+      return normalizePlanResponse(raw, payload)
     },
     async update(id: string, input: Record<string, unknown>): Promise<PlanView> {
-      return normalizePlan(
-        await apiFetch<unknown>(`/api/plans/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(input) })
-      )
+      const payload = buildPlanPayload(input)
+      const raw = await apiFetch<unknown>(`/api/plans/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      })
+      return normalizePlanResponse(raw, payload)
     },
     async remove(id: string): Promise<void> {
       await apiFetch<unknown>(`/api/plans/${encodeURIComponent(id)}`, { method: 'DELETE' })

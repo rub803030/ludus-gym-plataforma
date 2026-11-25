@@ -32,6 +32,7 @@ export interface Principal {
   platform: 'web' | 'mobile'
   jti: string
   gymId: string
+  activeGymId?: string | null
   name?: string
   email?: string
 }
@@ -102,10 +103,65 @@ export interface PlanView {
   name: string
   durationDays: number
   price: number
+  currency: string
   flags: Array<PlanFlag['key']>
   active: boolean
   description: string
   createdAt: string
+}
+
+export type GymStatus = 'PENDING_VERIFICATION' | 'ACTIVE' | 'SUSPENDED'
+
+export interface GymRegisterInput {
+  gymName: string
+  slug?: string
+  ownerName: string
+  email: string
+  password: string
+  timezone: string
+  capacity: number
+  currency: 'MXN'
+  address?: string
+  phone?: string
+  openingHours?: string
+}
+
+export interface GymProfileInput {
+  name?: string
+  address?: string | null
+  phone?: string | null
+  openingHours?: string | null
+  logoUrl?: string | null
+  timezone?: string
+  capacity?: number
+  currency?: 'MXN'
+}
+
+export interface GymProfile {
+  id: string
+  name: string
+  slug: string
+  status: GymStatus
+  publicCode: string
+  enrollmentQrToken: string
+  timezone: string
+  capacity: number
+  currency: string
+  address: string | null
+  phone: string | null
+  openingHours: string | null
+  logoUrl: string | null
+}
+
+export interface GymRegistration {
+  gym: { id: string; name: string; slug: string; status: GymStatus }
+  owner: { email: string; fullName: string }
+  verification: { email: string; expiresAt: string; devToken?: string; devLink?: string }
+}
+
+export interface GymVerification {
+  ok: boolean
+  gym: { id: string; name: string; status: GymStatus; publicCode: string; enrollmentQrToken: string }
 }
 
 export interface StaffUser {

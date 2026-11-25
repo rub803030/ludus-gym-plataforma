@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { api, getErrorMessage } from '@/lib/api-client'
 import { formatNumber, formatTime } from '@/lib/format'
-import type { AccessEvent, MemberView, OccupancyView, QrResultStatus } from '@/types'
+import { isApiError, type AccessEvent, type MemberView, type OccupancyView, type QrResultStatus } from '@/types'
 import { QrScanner } from '@/features/turnstile-live/QrScanner/QrScanner'
 import { EmptyState } from '@/ui/layout/EmptyState'
 import { PageHeader } from '@/ui/layout/PageHeader'
@@ -42,6 +42,7 @@ export function OccupancyBoard() {
   const [verifying, setVerifying] = useState(false)
   const [result, setResult] = useState<{ status: QrResultStatus; message: string } | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [crossGymPass, setCrossGymPass] = useState(false)
 
   const loadOccupancy = useCallback(async (initial = false) => {
     if (initial) setLoading(true)
@@ -100,6 +101,7 @@ export function OccupancyBoard() {
     if (!selectedMemberId || checkingIn) return
     setCheckingIn(true)
     setActionError(null)
+    setCrossGymPass(false)
     try {
       const member = members.find((item) => item.id === selectedMemberId)
       const verification = await api.access.manualCheckin(selectedMemberId)
@@ -136,11 +138,14 @@ export function OccupancyBoard() {
     if (!token || verifying) return
     setVerifying(true)
     setActionError(null)
+    setCrossGymPass(false)
     try {
       const verification = await api.access.verifyQr({ token, deviceId: 'ludus-web-reader' })
       registerEvent(verification.status, verification.message, verification.event.memberName, verification.message)
     } catch (verifyError) {
-      const message = getErrorMessage(verifyError)
+      const crossGym = isApiError(verifyError) && verifyError.code === 'CROSS_GYM_PASS'
+      const message = crossGym ? 'Este pase pertenece a otro gimnasio' : getErrorMessage(verifyError)
+      setCrossGymPass(crossGym)
       setActionError(message)
       registerEvent('invalid', message, 'QR no identificado', message)
     } finally {
@@ -321,7 +326,7 @@ export function OccupancyBoard() {
               className={`mt-6 border-l-2 ${RESULT_STYLE[result.status].border} bg-surface px-5 py-4`}
             >
               <p className={`text-xs font-bold uppercase tracking-[0.16em] ${RESULT_STYLE[result.status].text}`}>
-                {RESULT_STYLE[result.status].title}
+                {crossGymPass ? 'Pase de otro gimnasio' : RESULT_STYLE[result.status].title}
               </p>
               <p className="mt-2 text-sm leading-relaxed text-muted">{result.message}</p>
             </div>

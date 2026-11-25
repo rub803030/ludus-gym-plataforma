@@ -107,11 +107,15 @@ export function PlanEditor() {
         price: Math.round(form.price),
         description: form.description.trim(),
         flags: form.flags,
+        includesClasses: form.flags.includes('classes'),
+        includesNutrition: form.flags.includes('nutrition'),
         active: form.active,
         currency: 'MXN',
       }
-      if (editingId) await api.plans.update(editingId, payload)
-      else await api.plans.create(payload)
+      const saved = editingId ? await api.plans.update(editingId, payload) : await api.plans.create(payload)
+      setPlans((current) =>
+        editingId ? current.map((plan) => (plan.id === saved.id ? saved : plan)) : [saved, ...current]
+      )
       setNotice(editingId ? 'Plan actualizado correctamente.' : 'Plan creado y disponible para cobro.')
       resetForm()
       await load()
@@ -220,6 +224,12 @@ export function PlanEditor() {
                         {formatCurrency(plan.price)} · {plan.durationDays} días
                       </p>
                       {plan.description ? <p className="mt-2 text-xs leading-relaxed text-muted">{plan.description}</p> : null}
+                      <p className="tabular mt-2 text-[10px] uppercase tracking-[0.12em] text-muted">
+                        {plan.flags
+                          .map((flag) => PLAN_FLAGS.find((item) => item.key === flag)?.label ?? flag)
+                          .join(' · ') || 'Sin beneficios'}{' '}
+                        · {plan.currency}
+                      </p>
                     </div>
                     <div className="flex shrink-0 flex-col gap-2">
                       <Button variant="ghost" className="min-h-12 px-3" onClick={() => startEdit(plan)}>

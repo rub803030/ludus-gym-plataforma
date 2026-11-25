@@ -2,6 +2,10 @@ import type {
   AccessEvent,
   AuditLogView,
   CashSessionView,
+  GymProfile,
+  GymRegistration,
+  GymStatus,
+  GymVerification,
   MemberStatus,
   MemberView,
   NutritionPlanView,
@@ -19,6 +23,13 @@ import type {
 } from '@/types'
 
 const ROLES: readonly string[] = ['OWNER', 'MANAGER', 'STAFF', 'MEMBER']
+const GYM_STATUSES: readonly GymStatus[] = ['PENDING_VERIFICATION', 'ACTIVE', 'SUSPENDED']
+const PLAN_KEYS: ReadonlyArray<'gym_access' | 'classes' | 'nutrition' | 'guest_pass'> = [
+  'gym_access',
+  'classes',
+  'nutrition',
+  'guest_pass',
+]
 
 export function asRecord(value: unknown): Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -74,6 +85,11 @@ function normalizeRole(value: unknown, fallback: Role = 'STAFF'): Role {
   return ROLES.includes(role) ? (role as Role) : fallback
 }
 
+function normalizeGymStatus(value: unknown, fallback: GymStatus = 'PENDING_VERIFICATION'): GymStatus {
+  const status = asString(value).toUpperCase() as GymStatus
+  return GYM_STATUSES.includes(status) ? status : fallback
+}
+
 function normalizeStatus(value: unknown, fallback: MemberStatus = 'inactive'): MemberStatus {
   const raw = asString(value).toLowerCase().replace(/[_-]/g, ' ')
   if (raw.includes('active') || raw.includes('activo') || raw.includes('vigente')) return 'active'
@@ -121,6 +137,7 @@ export function normalizePrincipal(raw: unknown): Principal | null {
     platform: platformRaw === 'mobile' ? 'mobile' : 'web',
     jti: asString(coalesce(pick(outer, 'jti'), pick(inner, 'jti')), id),
     gymId: asString(coalesce(pick(outer, 'gymId'), pick(inner, 'gymId')), 'principal'),
+    activeGymId: asString(coalesce(pick(outer, 'activeGymId'), pick(inner, 'activeGymId'))) || null,
   }
   const name = asString(coalesce(pick(outer, 'name'), pick(inner, 'name'), pick(inner, 'fullName')))
   const email = asString(coalesce(pick(outer, 'email'), pick(inner, 'email')))
@@ -201,17 +218,88 @@ export function normalizePlan(raw: unknown): PlanView {
   const flagKeys = flagsRaw
     .map((flag) => (typeof flag === 'string' ? flag : asString(pick(asRecord(flag), 'key', 'name'))))
     .filter((flag): flag is 'gym_access' | 'classes' | 'nutrition' | 'guest_pass' =>
-      ['gym_access', 'classes', 'nutrition', 'guest_pass'].includes(flag)
+      (PLAN_KEYS as readonly string[]).includes(flag)
     )
+  const includesClasses = asBoolean(coalesce(pick(r, 'includesClasses'), flagKeys.includes('classes')))
+  const includesNutrition = asBoolean(coalesce(pick(r, 'includesNutrition'), flagKeys.includes('nutrition')))
+  const flags = PLAN_KEYS.filter(
+    (key) =>
+      key === 'gym_access' ||
+      flagKeys.includes(key) ||
+      (key === 'classes' && includesClasses) ||
+      (key === 'nutrition' && includesNutrition)
+  )
   return {
     id: asString(pick(r, 'id'), 'sin-id'),
     name: asString(coalesce(pick(r, 'name'), pick(r, 'planName')), 'Plan'),
     durationDays: asNumber(coalesce(pick(r, 'durationDays'), pick(r, 'duration'), pick(r, 'durationInDays')), 30),
     price: asNumber(coalesce(pick(r, 'price'), pick(r, 'amount')), 0),
-    flags: flagKeys,
+    currency: asString(coalesce(pick(r, 'currency'), 'MXN')),
+    flags,
     active: asBoolean(coalesce(pick(r, 'active'), pick(r, 'isActive'), pick(r, 'enabled')), true),
     description: asString(pick(r, 'description')),
     createdAt: asString(coalesce(pick(r, 'createdAt'), pick(r, 'created_at'))),
+  }
+}
+
+export function normalizeGym(raw: unknown): GymProfile {
+  const r = asRecord(raw)
+  return {
+    id: asString(pick(r, 'id'), 'sin-id'),
+    name: asString(coalesce(pick(r, 'name'), pick(r, 'gymName')), 'Gimnasio'),
+    slug: asString(pick(r, 'slug')),
+    status: normalizeGymStatus(pick(r, 'status')),
+    publicCode: asString(pick(r, 'publicCode')),
+    enrollmentQrToken: asString(pick(r, 'enrollmentQrToken')),
+    timezone: asString(pick(r, 'timezone'), 'America/Mexico_City'),
+    capacity: asNumber(pick(r, 'capacity'), 20),
+    currency: asString(pick(r, 'currency'), 'MXN'),
+    address: asString(pick(r, 'address')) || null,
+    phone: asString(pick(r, 'phone')) || null,
+    openingHours: asString(coalesce(pick(r, 'openingHours'), pick(r, 'opening_hours'))) || null,
+    logoUrl: asString(coalesce(pick(r, 'logoUrl'), pick(r, 'logo_url'))) || null,
+  }
+}
+
+export function normalizeGymRegistration(raw: unknown): GymRegistration {
+  const r = asRecord(raw)
+  const gym = asRecord(pick(r, 'gym'))
+  const owner = asRecord(pick(r, 'owner'))
+  const verification = asRecord(pick(r, 'verification'))
+  const devToken = asString(pick(verification, 'devToken'))
+  const devLink = asString(pick(verification, 'devLink'))
+  return {
+    gym: {
+      id: asString(pick(gym, 'id'), 'sin-id'),
+      name: asString(pick(gym, 'name'), 'Gimnasio'),
+      slug: asString(pick(gym, 'slug')),
+      status: normalizeGymStatus(pick(gym, 'status')),
+    },
+    owner: {
+      email: asString(pick(owner, 'email'), asString(pick(verification, 'email'))),
+      fullName: asString(pick(owner, 'fullName'), asString(pick(owner, 'ownerName'))),
+    },
+    verification: {
+      email: asString(pick(verification, 'email'), asString(pick(owner, 'email'))),
+      expiresAt: asString(pick(verification, 'expiresAt')),
+      ...(devToken ? { devToken } : {}),
+      ...(devLink ? { devLink } : {}),
+    },
+  }
+}
+
+export function normalizeGymVerification(raw: unknown): GymVerification {
+  const r = asRecord(raw)
+  const gym = asRecord(pick(r, 'gym'))
+  return {
+    ok: asBoolean(coalesce(pick(r, 'ok'), true)),
+    gym: {
+      id: asString(pick(gym, 'id'), 'sin-id'),
+      name: asString(pick(gym, 'name'), 'Gimnasio'),
+      status: normalizeGymStatus(pick(gym, 'status')),
+      publicCode: asString(pick(gym, 'publicCode')),
+      enrollmentQrToken: asString(pick(gym, 'enrollmentQrToken')),
+    },
   }
 }
 
