@@ -5,7 +5,7 @@ import { DomainError } from '../../shared/errors/domain-error.js'
 import { getPrincipal } from '../../shared/middleware/request-context.js'
 import { requirePermission } from '../../shared/middleware/rbac.js'
 import { requireAuth } from '../../shared/http.js'
-import { issueQr, issueOfflineCredential, verifyQr } from '../../shared/qr.js'
+import { issueQr, issueOfflineCredential, verifyQr, type VerifiedQr } from '../../shared/qr.js'
 import { getCache } from '../../shared/redis.js'
 import { writeAudit } from '../../shared/audit.js'
 
@@ -19,8 +19,23 @@ export async function registerAccessRoutes(app: FastifyInstance): Promise<void> 
     if (principal.role !== 'MEMBER' || principal.platform !== 'mobile') {
       throw new DomainError('FORBIDDEN', 'Solo socios desde la app', 403)
     }
-    const qr = issueQr(principal.id)
-    return { ...qr, offlineCredential: issueOfflineCredential(principal.id) }
+    const body = z.object({ gymId: z.string().uuid().optional() }).parse(req.body ?? {})
+    const gymId = body.gymId ?? principal.activeGymId ?? principal.gymId
+    if (!gymId) throw new DomainError('NO_GYM', 'Únete a algún gimnasio para tener acceso', 403)
+    const link = await prisma.gymMembership.findFirst({
+      where: {
+        memberId: principal.id,
+        gymId,
+        isActive: true,
+        status: 'ACTIVE',
+        deletedAt: null,
+        gym: { status: 'ACTIVE', deletedAt: null },
+      },
+      select: { id: true },
+    })
+    if (!link) throw new DomainError('NO_GYM', 'Únete a algún gimnasio para tener acceso', 403)
+    const qr = issueQr(principal.id, gymId)
+    return { ...qr, offlineCredential: issueOfflineCredential(principal.id, gymId) }
   })
 
   app.get('/api/access/occupancy', { preHandler: [requireAuth, requirePermission('access:checkin')] }, async (req) => {
@@ -46,18 +61,29 @@ export async function registerAccessRoutes(app: FastifyInstance): Promise<void> 
   app.post('/api/access/verify-qr', { preHandler: [requireAuth, requirePermission('access:checkin')] }, async (req) => {
     const body = z.object({ token: z.string().min(20), deviceId: z.string().optional() }).parse(req.body)
     const principal = getPrincipal(req)
-    let decoded: { memberId: string; bucket: number; offline: boolean }
+    let decoded: VerifiedQr
     try {
       decoded = verifyQr(body.token)
     } catch (error) {
       throw new DomainError('CONFLICT', error instanceof Error ? error.message : 'QR inválido', 409)
     }
+    if (decoded.gymId !== principal.gymId) {
+      throw new DomainError('CROSS_GYM_PASS', 'Este pase pertenece a otro gimnasio', 403)
+    }
 
     const member = await prisma.member.findFirst({
-      where: { id: decoded.memberId, gymId: principal.gymId },
-      include: { memberships: { where: { status: 'ACTIVE' }, take: 1 } },
+      where: { id: decoded.memberId, deletedAt: null },
+      include: {
+        gymMemberships: {
+          where: { gymId: decoded.gymId, isActive: true, status: 'ACTIVE', deletedAt: null },
+          take: 1,
+        },
+        memberships: { where: { status: 'ACTIVE', plan: { gymId: decoded.gymId } }, take: 1 },
+      },
     })
-    if (!member) throw new DomainError('NOT_FOUND', 'Socio no encontrado', 404)
+    if (!member || (!member.gymMemberships[0] && member.gymId !== decoded.gymId)) {
+      throw new DomainError('NOT_FOUND', 'Socio no encontrado', 404)
+    }
 
     const membership = member.memberships[0]
     if (!membership?.endDate || membership.endDate.getTime() < Date.now()) {

@@ -10,6 +10,7 @@ export interface TokenClaims {
   platform: 'web' | 'mobile'
   jti: string
   gymId: string
+  activeGymId?: string | null
   type: 'access' | 'refresh'
   familyId?: string
   exp: number
@@ -49,10 +50,12 @@ export function issueAccessToken(input: {
   role: Role
   platform: 'web' | 'mobile'
   gymId: string
+  activeGymId?: string | null
 }): { token: string; claims: TokenClaims } {
   const now = Math.floor(Date.now() / 1000)
   const claims: TokenClaims = {
     ...input,
+    activeGymId: input.activeGymId ?? input.gymId ?? null,
     jti: randomUUID(),
     type: 'access',
     iat: now,
@@ -66,11 +69,13 @@ export function issueRefreshToken(input: {
   role: Role
   platform: 'web' | 'mobile'
   gymId: string
+  activeGymId?: string | null
   familyId?: string
 }): { token: string; claims: TokenClaims } {
   const now = Math.floor(Date.now() / 1000)
   const claims: TokenClaims = {
     ...input,
+    activeGymId: input.activeGymId ?? input.gymId ?? null,
     jti: randomUUID(),
     type: 'refresh',
     familyId: input.familyId ?? randomUUID(),

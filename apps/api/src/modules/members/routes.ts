@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
-import { createMemberSchema, hasPermission } from '@ludus/shared'
+import { createMemberSchema, hasPermission, joinGymSchema, registerMemberSchema } from '@ludus/shared'
+import { randomInt } from 'node:crypto'
 import { prisma } from '../../shared/database/prisma.js'
 import { DomainError } from '../../shared/errors/domain-error.js'
 import { getPrincipal } from '../../shared/middleware/request-context.js'
@@ -9,7 +10,9 @@ import { requireAuth, parsePagination } from '../../shared/http.js'
 import { decryptOptional, encryptOptional } from '../../shared/crypto.js'
 import { generateTemporaryPassword, hashPassword } from '../../shared/password.js'
 import { writeAudit } from '../../shared/audit.js'
-import { issueVerification } from '../auth/email-verification.js'
+import { issueVerification, verificationResponse } from '../auth/email-verification.js'
+import { issueMemberSession } from '../auth/auth-service.js'
+import { verifyEnrollmentQr } from '../../shared/gym-qr.js'
 
 const updateSchema = createMemberSchema.partial().extend({ status: z.enum(['ACTIVE', 'PENDING', 'EXPIRED', 'SUSPENDED']).optional() })
 
@@ -20,8 +23,8 @@ function parse<T>(schema: z.ZodType<T>, value: unknown): T {
 }
 
 function toDto(member: {
-  id: string; code: string; firstName: string; lastName: string; email: string; phone: string
-  documentNumber: string; status: string; joinedAt: Date; createdAt: Date; emailVerified?: boolean
+  id: string; code: string; firstName: string; lastName: string; email: string; phone: string | null
+  documentNumber: string | null; status: string; joinedAt: Date; createdAt: Date; emailVerified?: boolean
   memberships?: Array<{ status: string; endDate: Date | null; plan: { name: string } }>
 }) {
   const active = member.memberships?.find((m) => m.status === 'ACTIVE')
@@ -32,8 +35,8 @@ function toDto(member: {
     firstName: member.firstName,
     lastName: member.lastName,
     email: member.email,
-    phone: member.phone,
-    document: member.documentNumber,
+    phone: member.phone ?? '',
+    document: member.documentNumber ?? '',
     status: member.status,
     emailVerified: member.emailVerified ?? false,
     joinedAt: member.joinedAt.toISOString(),
@@ -44,7 +47,154 @@ function toDto(member: {
   }
 }
 
+async function nextMemberCode(): Promise<string> {
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    const code = `LUD-${String(randomInt(0, 1_000_000)).padStart(6, '0')}`
+    const existing = await prisma.member.findFirst({ where: { code } })
+    if (!existing) return code
+  }
+  throw new DomainError('CONFLICT', 'No se pudo generar un código de socio', 409)
+}
+
 export async function registerMemberRoutes(app: FastifyInstance): Promise<void> {
+  app.post('/api/members/register', async (req, reply) => {
+    const body = parse(registerMemberSchema, req.body)
+    const existing = await prisma.member.findFirst({
+      where: { email: { equals: body.email, mode: 'insensitive' }, deletedAt: null },
+    })
+    if (existing) throw new DomainError('CONFLICT', 'Ya existe una cuenta con ese correo', 409)
+    const member = await prisma.member.create({
+      data: {
+        code: await nextMemberCode(),
+        firstName: body.firstName,
+        lastName: body.lastName,
+        email: body.email.toLowerCase(),
+        phone: body.phone ?? null,
+        documentNumber: body.documentNumber ?? null,
+        birthDate: body.birthDate ? new Date(body.birthDate) : null,
+        passwordHash: hashPassword(body.password),
+        status: 'PENDING',
+        emailVerified: false,
+      },
+    })
+    const issued = await issueVerification({
+      kind: 'member',
+      id: member.id,
+      email: member.email,
+      name: `${member.firstName} ${member.lastName}`,
+      platform: 'mobile',
+    })
+    reply.code(201)
+    return {
+      member: { id: member.id, code: member.code, email: member.email },
+      verification: verificationResponse(issued),
+    }
+  })
+
+  app.post('/api/members/join-gym', { preHandler: requireAuth }, async (req) => {
+    const principal = getPrincipal(req)
+    if (principal.role !== 'MEMBER' || principal.platform !== 'mobile') {
+      throw new DomainError('FORBIDDEN', 'La vinculación es exclusiva de socios en la app', 403)
+    }
+    const body = parse(joinGymSchema, req.body)
+    const rawCode = body.code.trim()
+    let gymId: string
+
+    try {
+      const decoded = verifyEnrollmentQr(rawCode)
+      const signedGym = await prisma.gym.findFirst({
+        where: { id: decoded.gymId, publicCode: decoded.code, deletedAt: null },
+      })
+      if (!signedGym) throw new Error('QR de gimnasio no vigente')
+      gymId = decoded.gymId
+    } catch {
+      const byCode = await prisma.gym.findFirst({
+        where: { publicCode: rawCode.toUpperCase(), deletedAt: null },
+      })
+      if (!byCode) throw new DomainError('NOT_FOUND', 'No encontramos ese gimnasio. Revisa el código', 404)
+      gymId = byCode.id
+    }
+
+    const gym = await prisma.gym.findFirst({ where: { id: gymId, deletedAt: null } })
+    if (!gym) throw new DomainError('NOT_FOUND', 'No encontramos ese gimnasio. Revisa el código', 404)
+    if (gym.status !== 'ACTIVE') {
+      throw new DomainError('GYM_NOT_ACTIVE', 'Este gimnasio todavía no está activo', 403)
+    }
+
+    const member = await prisma.member.findUnique({ where: { id: principal.id } })
+    if (!member) throw new DomainError('NOT_FOUND', 'Socio no encontrado', 404)
+    const key = { gymId, memberId: member.id }
+    const previous = await prisma.gymMembership.findUnique({ where: { gymId_memberId: key } })
+    if (previous?.status === 'SUSPENDED') {
+      throw new DomainError('CONFLICT', 'Tu membresía en este gimnasio está suspendida', 409)
+    }
+    await prisma.gymMembership.upsert({
+      where: { gymId_memberId: key },
+      create: { gymId, memberId: member.id, status: 'ACTIVE', isActive: true, joinedAt: new Date() },
+      update: { status: 'ACTIVE', isActive: true, deletedAt: null },
+    })
+    if (!member.gymId) {
+      await prisma.member.update({ where: { id: member.id }, data: { gymId } })
+    }
+    const tokens = await issueMemberSession(member.id, gymId, 'ludus-android')
+    return {
+      gym: { id: gym.id, name: gym.name, publicCode: gym.publicCode, status: gym.status },
+      activeGymId: gymId,
+      alreadyMember: Boolean(previous),
+      tokens: { accessToken: tokens.accessToken, refreshToken: tokens.refreshToken },
+    }
+  })
+
+  app.post('/api/members/switch-gym', { preHandler: requireAuth }, async (req) => {
+    const principal = getPrincipal(req)
+    if (principal.role !== 'MEMBER' || principal.platform !== 'mobile') {
+      throw new DomainError('FORBIDDEN', 'El cambio de gimnasio es exclusivo de la app', 403)
+    }
+    const body = parse(z.object({ gymId: z.string().uuid() }), req.body)
+    const link = await prisma.gymMembership.findFirst({
+      where: {
+        memberId: principal.id,
+        gymId: body.gymId,
+        isActive: true,
+        status: 'ACTIVE',
+        deletedAt: null,
+        gym: { status: 'ACTIVE', deletedAt: null },
+      },
+      include: { gym: { select: { id: true, name: true, publicCode: true } } },
+    })
+    if (!link) throw new DomainError('NO_GYM', 'No perteneces a ese gimnasio', 403)
+    const tokens = await issueMemberSession(principal.id, body.gymId, 'ludus-android')
+    return {
+      gym: link.gym,
+      activeGymId: body.gymId,
+      tokens: { accessToken: tokens.accessToken, refreshToken: tokens.refreshToken },
+    }
+  })
+
+  app.get('/api/members/my-gyms', { preHandler: requireAuth }, async (req) => {
+    const principal = getPrincipal(req)
+    if (principal.role !== 'MEMBER') throw new DomainError('FORBIDDEN', 'Solo socios', 403)
+    const links = await prisma.gymMembership.findMany({
+      where: { memberId: principal.id, deletedAt: null },
+      include: { gym: true },
+      orderBy: { joinedAt: 'asc' },
+    })
+    const usable = links.filter(
+      (link) => link.isActive && link.status === 'ACTIVE' && link.gym.status === 'ACTIVE',
+    )
+    const active = usable.find((link) => link.gymId === principal.activeGymId) ?? usable[0]
+    return {
+      activeGymId: active?.gymId ?? null,
+      gyms: links.map((link) => ({
+        id: link.gymId,
+        name: link.gym.name,
+        publicCode: link.gym.publicCode,
+        status: link.gym.status,
+        isActive: link.isActive && link.status === 'ACTIVE' && link.gym.status === 'ACTIVE',
+        joinedAt: link.joinedAt.toISOString(),
+      })),
+    }
+  })
   app.get('/api/members', { preHandler: [requireAuth, requirePermission('members:read')] }, async (req) => {
     const { page, limit, search } = parsePagination(req.query as Record<string, unknown>)
     const principal = getPrincipal(req)

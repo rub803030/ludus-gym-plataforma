@@ -14,6 +14,10 @@ export type ErrorCode =
   | 'DENIED_QR'
   | 'DENIED_CAPACITY'
   | 'DENIED_EXPIRED'
+  | 'NO_GYM'
+  | 'GYM_NOT_ACTIVE'
+  | 'CROSS_GYM_PASS'
+  | 'INVALID_ENROLLMENT_CODE'
 
 export class DomainError extends Error {
   constructor(

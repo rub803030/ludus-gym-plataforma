@@ -13,6 +13,25 @@ export interface VerificationIssue {
   token: string
   link: string
   email: string
+  expiresAt: string
+}
+
+/** Expone el correo y la vigencia; el token solo se devuelve fuera de producción. */
+export function verificationResponse(issued: VerificationIssue): {
+  email: string
+  expiresAt: string
+  devToken?: string
+  devLink?: string
+} {
+  if (process.env.NODE_ENV === 'production') {
+    return { email: issued.email, expiresAt: issued.expiresAt }
+  }
+  return {
+    email: issued.email,
+    expiresAt: issued.expiresAt,
+    devToken: issued.token,
+    devLink: issued.link,
+  }
 }
 
 function hashToken(token: string): string {
@@ -73,7 +92,7 @@ export async function issueVerification(input: {
     await clearToken(input.kind, input.id)
     throw error
   }
-  return { token, link, email: input.email }
+  return { token, link, email: input.email, expiresAt: expiresAt.toISOString() }
 }
 
 export async function verifyEmailToken(token: string): Promise<{
@@ -142,7 +161,7 @@ export async function verifyEmailToken(token: string): Promise<{
       email: member.email,
       platform: 'mobile',
       name: `${member.firstName} ${member.lastName}`,
-      gymId: member.gymId,
+      gymId: member.gymId ?? '',
     }
   }
 

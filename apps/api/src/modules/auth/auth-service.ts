@@ -15,6 +15,26 @@ function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex')
 }
 
+/** Gimnasio activo del socio: primero sus membresías, luego el campo legacy. */
+async function memberGymContext(
+  memberId: string,
+  legacyGymId: string | null,
+): Promise<{ gymId: string; activeGymId: string | null }> {
+  const links = await prisma.gymMembership.findMany({
+    where: {
+      memberId,
+      isActive: true,
+      status: 'ACTIVE',
+      deletedAt: null,
+      gym: { status: 'ACTIVE', deletedAt: null },
+    },
+    select: { gymId: true },
+    orderBy: { joinedAt: 'asc' },
+  })
+  const chosen = links[0]?.gymId ?? legacyGymId ?? null
+  return { gymId: chosen ?? '', activeGymId: chosen }
+}
+
 export interface LoginResult {
   accessToken: string
   refreshToken: string
@@ -24,7 +44,49 @@ export interface LoginResult {
     role: Role
     platform: 'web' | 'mobile'
     gymId: string
+    activeGymId: string | null
     name: string
+  }
+}
+
+/** Emite una sesión móvil ya vinculada al gimnasio indicado. */
+export async function issueMemberSession(
+  memberId: string,
+  gymId: string,
+  deviceId: string,
+): Promise<LoginResult> {
+  const member = await prisma.member.findFirst({ where: { id: memberId, deletedAt: null } })
+  if (!member) throw new DomainError('NOT_FOUND', 'Socio no encontrado', 404)
+  const input = {
+    sub: member.id,
+    role: 'MEMBER' as const,
+    platform: 'mobile' as const,
+    gymId,
+    activeGymId: gymId,
+  }
+  const access = issueAccessToken(input)
+  const refresh = issueRefreshToken(input)
+  await prisma.memberSession.create({
+    data: {
+      memberId: member.id,
+      jti: refresh.claims.jti,
+      tokenHash: hashToken(refresh.token),
+      deviceId,
+      expiresAt: new Date(refresh.claims.exp * 1000),
+    },
+  })
+  return {
+    accessToken: access.token,
+    refreshToken: refresh.token,
+    csrfToken: '',
+    principal: {
+      id: member.id,
+      role: 'MEMBER',
+      platform: 'mobile',
+      gymId,
+      activeGymId: gymId,
+      name: `${member.firstName} ${member.lastName}`,
+    },
   }
 }
 
@@ -73,7 +135,14 @@ export async function loginWeb(email: string, password: string): Promise<LoginRe
     accessToken: access.token,
     refreshToken: refresh.token,
     csrfToken: '',
-    principal: { id: user.id, role: input.role, platform: 'web', gymId: user.gymId, name: user.fullName },
+    principal: {
+      id: user.id,
+      role: input.role,
+      platform: 'web',
+      gymId: user.gymId,
+      activeGymId: user.gymId,
+      name: user.fullName,
+    },
   }
 }
 
@@ -91,30 +160,8 @@ export async function loginMember(email: string, password: string, deviceId: str
     throw new DomainError('FORBIDDEN', 'Tu membresía está suspendida. Contacta recepción', 403)
   }
 
-  const input = { sub: member.id, role: 'MEMBER' as const, platform: 'mobile' as const, gymId: member.gymId }
-  const access = issueAccessToken(input)
-  const refresh = issueRefreshToken(input)
-  await prisma.memberSession.create({
-    data: {
-      memberId: member.id,
-      jti: refresh.claims.jti,
-      tokenHash: hashToken(refresh.token),
-      deviceId,
-      expiresAt: new Date(refresh.claims.exp * 1000),
-    },
-  })
-  return {
-    accessToken: access.token,
-    refreshToken: refresh.token,
-    csrfToken: '',
-    principal: {
-      id: member.id,
-      role: 'MEMBER',
-      platform: 'mobile',
-      gymId: member.gymId,
-      name: `${member.firstName} ${member.lastName}`,
-    },
-  }
+  const context = await memberGymContext(member.id, member.gymId)
+  return issueMemberSession(member.id, context.gymId, deviceId)
 }
 
 export async function rotateRefresh(refreshToken: string): Promise<LoginResult> {
@@ -159,7 +206,14 @@ export async function rotateRefresh(refreshToken: string): Promise<LoginResult> 
       accessToken: access.token,
       refreshToken: refresh.token,
       csrfToken: '',
-      principal: { id: user.id, role: input.role, platform: input.platform, gymId: user.gymId, name: user.fullName },
+      principal: {
+        id: user.id,
+        role: input.role,
+        platform: input.platform,
+        gymId: user.gymId,
+        activeGymId: user.gymId,
+        name: user.fullName,
+      },
     }
   }
 
@@ -177,7 +231,13 @@ export async function rotateRefresh(refreshToken: string): Promise<LoginResult> 
     throw new DomainError('EMAIL_NOT_VERIFIED', 'Verifica tu correo para continuar', 403, { email: member.email })
   }
   await prisma.memberSession.update({ where: { id: memberSession.id }, data: { tokenHash: hashToken('used') } })
-  const input = { sub: member.id, role: 'MEMBER' as const, platform: 'mobile' as const, gymId: member.gymId }
+  const context = await memberGymContext(member.id, member.gymId)
+  const input = {
+    sub: member.id,
+    role: 'MEMBER' as const,
+    platform: 'mobile' as const,
+    ...context,
+  }
   const access = issueAccessToken(input)
   const refresh = issueRefreshToken(input)
   await prisma.memberSession.create({
@@ -193,7 +253,14 @@ export async function rotateRefresh(refreshToken: string): Promise<LoginResult> 
     accessToken: access.token,
     refreshToken: refresh.token,
     csrfToken: '',
-    principal: { id: member.id, ...input, name: `${member.firstName} ${member.lastName}` },
+    principal: {
+      id: member.id,
+      role: input.role,
+      platform: input.platform,
+      gymId: context.gymId,
+      activeGymId: context.activeGymId,
+      name: `${member.firstName} ${member.lastName}`,
+    },
   }
 }
 

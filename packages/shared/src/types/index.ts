@@ -5,5 +5,7 @@ export interface Principal {
   role: Role
   platform: 'web' | 'mobile'
   jti: string
+  /** Gimnasio activo de la sesión; cadena vacía cuando el socio aún no tiene uno. */
   gymId: string
+  activeGymId: string | null
 }

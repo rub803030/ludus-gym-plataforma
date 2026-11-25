@@ -16,6 +16,14 @@ enum StaffRole {
   @@map("staff_role")
 }
 
+enum GymStatus {
+  PENDING_VERIFICATION
+  ACTIVE
+  SUSPENDED
+
+  @@map("gym_status")
+}
+
 enum MemberStatus {
   ACTIVE
   PENDING
@@ -69,23 +77,54 @@ enum ClassBookingStatus {
 }
 
 model Gym {
-  id        String   @id @default(uuid()) @db.Uuid
-  name      String
-  slug      String   @unique
-  timezone  String   @default("America/Mexico_City")
-  capacity  Int
-  currency  String   @default("MXN")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-  deletedAt DateTime? @map("deleted_at")
+  id                    String     @id @default(uuid()) @db.Uuid
+  name                  String
+  slug                  String     @unique
+  status                GymStatus  @default(PENDING_VERIFICATION)
+  publicCode            String?    @unique @map("public_code")
+  enrollmentQrToken     String?    @map("enrollment_qr_token")
+  timezone              String     @default("America/Mexico_City")
+  capacity              Int
+  currency              String     @default("MXN")
+  address               String?
+  phone                 String?
+  openingHours          String?    @map("opening_hours")
+  logoUrl               String?    @map("logo_url")
+  verificationTokenHash String?    @unique @map("verification_token_hash")
+  verificationExpiresAt DateTime?  @map("verification_expires_at")
+  verificationSentAt    DateTime?  @map("verification_sent_at")
+  createdAt             DateTime   @default(now()) @map("created_at")
+  updatedAt             DateTime   @updatedAt @map("updated_at")
+  deletedAt             DateTime?  @map("deleted_at")
 
   staff     StaffUser[]
   members   Member[]
+  memberLinks GymMembership[]
   plans     Plan[]
   payments  Payment[]
   classes   GymClass[]
 
   @@map("gyms")
+}
+
+model GymMembership {
+  id        String    @id @default(uuid()) @db.Uuid
+  gymId     String    @map("gym_id") @db.Uuid
+  memberId  String    @map("member_id") @db.Uuid
+  status    String    @default("ACTIVE")
+  isActive  Boolean   @default(true) @map("is_active")
+  joinedAt  DateTime  @default(now()) @map("joined_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  gym    Gym    @relation(fields: [gymId], references: [id])
+  member Member @relation(fields: [memberId], references: [id])
+
+  @@unique([gymId, memberId])
+  @@index([memberId, isActive])
+  @@index([gymId, isActive])
+  @@map("gym_memberships")
 }
 
 model StaffUser {
@@ -145,15 +184,15 @@ model MemberSession {
 
 model Member {
   id                 String       @id @default(uuid()) @db.Uuid
-  gymId              String       @map("gym_id") @db.Uuid
+  gymId              String?      @map("gym_id") @db.Uuid
   code               String
   firstName          String       @map("first_name")
   lastName           String       @map("last_name")
-  email              String       @db.Citext
-  phone              String
+  email              String       @unique @db.Citext
+  phone              String?
   documentType       String       @default("INE") @map("document_type")
-  documentNumber     String       @map("document_number")
-  birthDate          DateTime     @db.Date @map("birth_date")
+  documentNumber     String?      @map("document_number")
+  birthDate          DateTime?    @db.Date @map("birth_date")
   medicalNotesCipher Bytes?       @map("medical_notes_cipher")
   allergiesCipher    Bytes?       @map("allergies_cipher")
   conditionsCipher   Bytes?       @map("conditions_cipher")
@@ -170,7 +209,8 @@ model Member {
   updatedAt          DateTime     @updatedAt @map("updated_at")
   deletedAt          DateTime?    @map("deleted_at")
 
-  gym         Gym           @relation(fields: [gymId], references: [id])
+  gym         Gym?          @relation(fields: [gymId], references: [id])
+  gymMemberships GymMembership[]
   memberships Membership[]
   payments    Payment[]
   routines    Routine[]
@@ -180,7 +220,6 @@ model Member {
 
   @@unique([gymId, code])
   @@unique([gymId, documentNumber])
-  @@unique([gymId, email])
   @@unique([verificationTokenHash])
   @@index([gymId, status])
   @@map("members")

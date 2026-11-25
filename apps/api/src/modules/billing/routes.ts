@@ -9,14 +9,35 @@ import { requireAuth } from '../../shared/http.js'
 import { idempotencyGuard } from '../../shared/middleware/idempotency.js'
 import { writeAudit } from '../../shared/audit.js'
 
+const planFlagSchema = z.enum(['gym_access', 'classes', 'nutrition', 'guest_pass'])
+
 const planSchema = z.object({
   name: z.string().min(2).max(80),
   description: z.string().max(500).optional(),
   durationDays: z.number().int().positive(),
   price: z.number().positive(),
-  includesClasses: z.boolean().default(false),
-  includesNutrition: z.boolean().default(false),
+  includesClasses: z.boolean().optional(),
+  includesNutrition: z.boolean().optional(),
+  flags: z.array(planFlagSchema).optional(),
+  active: z.boolean().optional(),
+  currency: z.literal('MXN').optional(),
 })
+
+type PlanBody = z.infer<typeof planSchema>
+
+function planBenefits(body: PlanBody) {
+  return {
+    includesClasses: body.includesClasses ?? body.flags?.includes('classes') ?? false,
+    includesNutrition: body.includesNutrition ?? body.flags?.includes('nutrition') ?? false,
+  }
+}
+
+function planFlags(plan: { includesClasses: boolean; includesNutrition: boolean }): string[] {
+  const flags = ['gym_access']
+  if (plan.includesClasses) flags.push('classes')
+  if (plan.includesNutrition) flags.push('nutrition')
+  return flags
+}
 
 const shiftSchema = z.object({
   openingAmount: z.number().min(0).optional(),
@@ -49,6 +70,9 @@ export async function registerBillingRoutes(app: FastifyInstance): Promise<void>
       price: p.priceCents / 100,
       includesClasses: p.includesClasses,
       includesNutrition: p.includesNutrition,
+      flags: planFlags(p),
+      active: p.isActive,
+      currency: p.currency,
     }))
   })
 
@@ -64,8 +88,8 @@ export async function registerBillingRoutes(app: FastifyInstance): Promise<void>
         description: body.description,
         durationDays: body.durationDays,
         priceCents: Math.round(body.price * 100),
-        includesClasses: body.includesClasses,
-        includesNutrition: body.includesNutrition,
+        ...planBenefits(body),
+        isActive: body.active ?? true,
       },
     })
     reply.code(201)
@@ -75,15 +99,30 @@ export async function registerBillingRoutes(app: FastifyInstance): Promise<void>
   app.patch('/api/plans/:id', { preHandler: [requireAuth, requirePermission('plans:manage')] }, async (req) => {
     const { id } = req.params as { id: string }
     const body = parse(planSchema.partial(), req.body)
+    const principal = getPrincipal(req)
+    const owned = await prisma.plan.findFirst({
+      where: { id, gymId: principal.gymId, deletedAt: null },
+    })
+    if (!owned) throw new DomainError('NOT_FOUND', 'Plan no encontrado', 404)
+    const benefits = {
+      includesClasses: body.includesClasses ?? body.flags?.includes('classes') ?? owned.includesClasses,
+      includesNutrition: body.includesNutrition ?? body.flags?.includes('nutrition') ?? owned.includesNutrition,
+    }
     const plan = await prisma.plan.update({
-      where: { id },
+      where: { id: owned.id },
       data: {
         name: body.name,
         description: body.description,
         durationDays: body.durationDays,
         priceCents: body.price !== undefined ? Math.round(body.price * 100) : undefined,
-        includesClasses: body.includesClasses,
-        includesNutrition: body.includesNutrition,
+        includesClasses: body.includesClasses !== undefined || body.flags !== undefined
+          ? benefits.includesClasses
+          : undefined,
+        includesNutrition: body.includesNutrition !== undefined || body.flags !== undefined
+          ? benefits.includesNutrition
+          : undefined,
+        isActive: body.active,
+        currency: body.currency,
       },
     })
     return { id: plan.id, name: plan.name, price: plan.priceCents / 100 }

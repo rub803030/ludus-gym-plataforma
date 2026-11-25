@@ -18,6 +18,7 @@ import { registerWorkoutRoutes } from './modules/workouts-nutrition/routes.js'
 import { registerAnalyticsRoutes } from './modules/analytics-audit/routes.js'
 import { registerStaffRoutes } from './modules/staff-management/routes.js'
 import { registerStorageRoutes } from './modules/storage/routes.js'
+import { registerGymRoutes } from './modules/gyms/routes.js'
 
 export async function buildApp() {
   let env
@@ -96,6 +97,7 @@ export async function buildApp() {
   await registerAnalyticsRoutes(app)
   await registerStaffRoutes(app)
   await registerStorageRoutes(app)
+  await registerGymRoutes(app)
 
   const io = new SocketServer(app.server, {
     cors: { origin: env.CORS_ORIGIN, credentials: true },

@@ -2,6 +2,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify'
 import { verifyAccessToken } from './jwt.js'
 import { DomainError } from './errors/domain-error.js'
 import type { Principal } from '@ludus/shared'
+import { needsGymContext, requireGymContext } from './middleware/gym-context.js'
 
 export function tokenFromRequest(req: FastifyRequest): string | null {
   const header = req.headers.authorization
@@ -14,12 +15,15 @@ export function authenticate(req: FastifyRequest): Principal {
   const token = tokenFromRequest(req)
   if (!token) throw new DomainError('UNAUTHORIZED', 'Inicia sesión para continuar', 401)
   const claims = verifyAccessToken(token)
+  // Tokens emitidos antes del cambio no traen activeGymId: se usa gymId.
+  const activeGymId = claims.activeGymId ?? claims.gymId ?? null
   return {
     id: claims.sub,
     role: claims.role,
     platform: claims.platform,
     jti: claims.jti,
-    gymId: claims.gymId,
+    gymId: activeGymId ?? '',
+    activeGymId,
   }
 }
 
@@ -27,6 +31,7 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply): Pro
   req.principal = authenticate(req)
   const { assertNotRevoked } = await import('./middleware/revocation.js')
   await assertNotRevoked(req)
+  if (needsGymContext(req)) await requireGymContext(req, reply)
   reply.header('Cache-Control', 'no-store')
 }
 

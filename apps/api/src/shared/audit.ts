@@ -1,7 +1,7 @@
 import { prisma } from './database/prisma.js'
 
 export interface AuditInput {
-  gymId: string
+  gymId: string | null
   actorId?: string | null
   actorRole?: string | null
   action: string
@@ -14,6 +14,7 @@ export interface AuditInput {
 }
 
 export async function writeAudit(input: AuditInput): Promise<void> {
+  if (!input.gymId) return
   try {
     await prisma.$executeRaw`
       INSERT INTO audit_logs (gym_id, actor_id, actor_role, action, entity, entity_id, before, after, ip, user_agent)

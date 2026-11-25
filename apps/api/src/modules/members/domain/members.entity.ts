@@ -31,15 +31,15 @@ export interface MedicalRecord {
 export function toMemberDto(member: Member): MemberDto {
   return {
     id: member.id,
-    gymId: member.gymId,
+    gymId: member.gymId ?? '',
     code: member.code,
     firstName: member.firstName,
     lastName: member.lastName,
     email: member.email,
-    phone: member.phone,
+    phone: member.phone ?? '',
     documentType: member.documentType,
-    documentNumber: member.documentNumber,
-    birthDate: member.birthDate.toISOString().slice(0, 10),
+    documentNumber: member.documentNumber ?? '',
+    birthDate: member.birthDate ? member.birthDate.toISOString().slice(0, 10) : '',
     status: member.status,
     joinedAt: member.joinedAt.toISOString(),
   }
