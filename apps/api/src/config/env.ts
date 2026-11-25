@@ -3,6 +3,20 @@ import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { z } from 'zod'
 
+/** Una cuenta SMTP de la rotación. `from` se deriva de `user` si no se indica. */
+export const smtpAccountSchema = z.object({
+  user: z.string().email(),
+  password: z.string().min(1),
+  from: z.string().min(3).optional(),
+  host: z.string().min(1).optional(),
+  port: z.coerce.number().int().positive().optional(),
+  secure: z.boolean().optional(),
+})
+
+export type SmtpAccount = z.infer<typeof smtpAccountSchema>
+
+const smtpAccountsSchema = z.array(smtpAccountSchema).min(1).max(10)
+
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   API_PORT: z.coerce.number().int().positive().default(4000),
@@ -23,6 +37,15 @@ const envSchema = z.object({
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(120),
   RESEND_API_KEY: z.string().min(1).default(''),
   EMAIL_FROM: z.string().min(3).default('Ludus GYM <onboarding@resend.dev>'),
+  // SMTP propio: entrega directa al correo real del socio, sin dominio verificado.
+  SMTP_HOST: z.string().default(''),
+  SMTP_PORT: z.coerce.number().int().positive().default(587),
+  SMTP_SECURE: z.enum(['true', 'false']).default('false').transform((value) => value === 'true'),
+  SMTP_USER: z.string().default(''),
+  SMTP_PASSWORD: z.string().default(''),
+  // Rotación opcional: un solo secreto JSON con hasta 10 cuentas {user,password,from?}.
+  SMTP_ACCOUNTS: z.string().default(''),
+  SMTP_DAILY_LIMIT: z.coerce.number().int().positive().default(300),
   // Solo desarrollo: onboarding@resend.dev entrega únicamente al correo dueño de la cuenta.
   RESEND_TEST_RECIPIENT: z.string().email().optional(),
   WEB_APP_URL: z.string().url().default('http://localhost:3000'),
@@ -44,8 +67,45 @@ const envSchema = z.object({
   if (!value.DIRECT_URL) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['DIRECT_URL'], message: 'DIRECT_URL es obligatorio en producción para migraciones' })
   }
-  if (!value.RESEND_API_KEY) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['RESEND_API_KEY'], message: 'RESEND_API_KEY es obligatorio en producción' })
+  let rotatingAccounts: SmtpAccount[] = []
+  if (value.SMTP_ACCOUNTS.trim()) {
+    try {
+      const parsedAccounts = smtpAccountsSchema.safeParse(JSON.parse(value.SMTP_ACCOUNTS))
+      if (parsedAccounts.success) {
+        rotatingAccounts = parsedAccounts.data
+      } else {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['SMTP_ACCOUNTS'],
+          message: 'SMTP_ACCOUNTS debe ser un JSON con 1 a 10 cuentas {user, password, from?}',
+        })
+      }
+    } catch {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['SMTP_ACCOUNTS'],
+        message: 'SMTP_ACCOUNTS debe ser un JSON válido',
+      })
+    }
+  }
+  const singleSmtpConfigured = Boolean(value.SMTP_HOST.trim() && value.SMTP_USER.trim() && value.SMTP_PASSWORD)
+  const smtpConfigured = rotatingAccounts.length > 0 || singleSmtpConfigured
+  if (!smtpConfigured && !value.RESEND_API_KEY) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['RESEND_API_KEY'],
+      message: 'En producción se requiere RESEND_API_KEY, SMTP_HOST + SMTP_USER + SMTP_PASSWORD o SMTP_ACCOUNTS',
+    })
+  }
+  if (rotatingAccounts.length === 0 && singleSmtpConfigured) {
+    const fromAddress = (value.EMAIL_FROM.match(/<([^>]+)>/)?.[1] ?? value.EMAIL_FROM).trim().toLowerCase()
+    if (fromAddress !== value.SMTP_USER.trim().toLowerCase()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['EMAIL_FROM'],
+        message: 'Con un único SMTP, EMAIL_FROM debe usar la misma dirección que SMTP_USER',
+      })
+    }
   }
   const appUrl = new URL(value.WEB_APP_URL)
   if (appUrl.protocol !== 'https:' || ['localhost', '127.0.0.1', '::1'].includes(appUrl.hostname)) {
@@ -54,6 +114,13 @@ const envSchema = z.object({
 })
 
 export type Env = z.infer<typeof envSchema>
+
+/** Devuelve las cuentas de rotación ya validadas por `loadEnv`. */
+export function getSmtpAccounts(env: Env): SmtpAccount[] {
+  if (!env.SMTP_ACCOUNTS.trim()) return []
+  const parsed = smtpAccountsSchema.safeParse(JSON.parse(env.SMTP_ACCOUNTS))
+  return parsed.success ? parsed.data : []
+}
 
 let dotenvLoaded = false
 

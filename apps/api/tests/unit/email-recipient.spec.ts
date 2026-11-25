@@ -2,7 +2,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Env } from '../../src/config/env.js'
 import { sendVerificationEmail } from '../../src/shared/email.js'
 
-vi.mock('../../src/config/env.js', () => ({ loadEnv: vi.fn() }))
+vi.mock('../../src/config/env.js', () => ({ loadEnv: vi.fn(), getSmtpAccounts: vi.fn(() => []) }))
+vi.mock('../../src/shared/database/prisma.js', () => ({
+  prisma: { emailSendQuota: { upsert: vi.fn(), updateMany: vi.fn() } },
+}))
 
 const { loadEnv } = await import('../../src/config/env.js')
 
@@ -12,6 +15,13 @@ function configure(overrides: Partial<Env>): void {
     RESEND_API_KEY: 'clave-de-prueba-no-real',
     EMAIL_FROM: 'Ludus GYM <onboarding@resend.dev>',
     EMAIL_VERIFICATION_TTL_MINUTES: 30,
+    SMTP_HOST: '',
+    SMTP_PORT: 587,
+    SMTP_SECURE: false,
+    SMTP_USER: '',
+    SMTP_PASSWORD: '',
+    SMTP_ACCOUNTS: '',
+    SMTP_DAILY_LIMIT: 300,
     RESEND_TEST_RECIPIENT: undefined,
     ...overrides,
   } as Env)
