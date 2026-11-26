@@ -186,6 +186,9 @@ fun MyGymsScreen(
 @Composable
 fun GymQrScannerScreen(
     onDetected: (String) -> Unit,
+    onRetry: (String) -> Unit,
+    errorMessage: String?,
+    isLoading: Boolean,
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -200,6 +203,7 @@ fun GymQrScannerScreen(
         hasPermission = granted
     }
     var lastRawValue by remember { mutableStateOf<String?>(null) }
+    var isSubmitting by remember { mutableStateOf(false) }
     var scanMessage by remember { mutableStateOf("Apunta al QR estático del gimnasio") }
     val bound = remember { mutableStateOf(false) }
     val options = remember {
@@ -212,6 +216,9 @@ fun GymQrScannerScreen(
     }
     LaunchedEffect(Unit) {
         if (!hasPermission) permissionLauncher.launch(Manifest.permission.CAMERA)
+    }
+    LaunchedEffect(isLoading, errorMessage) {
+        isSubmitting = isLoading
     }
 
     Column(
@@ -264,8 +271,9 @@ fun GymQrScannerScreen(
                             barcodeScanner.process(image)
                                 .addOnSuccessListener { barcodes ->
                                     val raw = barcodes.firstOrNull { it.format == Barcode.FORMAT_QR_CODE }?.rawValue
-                                    if (!raw.isNullOrBlank() && raw != lastRawValue) {
+                                    if (!raw.isNullOrBlank() && raw != lastRawValue && !isSubmitting) {
                                         lastRawValue = raw
+                                        isSubmitting = true
                                         scanMessage = "QR leído. Vinculando con el gimnasio…"
                                         currentOnDetected.value(raw)
                                     }
@@ -287,9 +295,24 @@ fun GymQrScannerScreen(
                     }, ContextCompat.getMainExecutor(context))
                 },
             )
-            GymStatusText(scanMessage, success = lastRawValue != null)
+            GymStatusText(
+                text = errorMessage ?: scanMessage,
+                success = errorMessage == null && lastRawValue != null && !isLoading,
+                error = errorMessage != null,
+            )
+            if (errorMessage != null && lastRawValue != null) {
+                LudusButton(
+                    text = "Reintentar este QR",
+                    onClick = {
+                        isSubmitting = true
+                        onRetry(lastRawValue.orEmpty())
+                    },
+                    loading = isLoading,
+                    enabled = !isLoading,
+                )
+            }
         } else {
-            GymStatusText("Necesitamos permiso de cámara para leer el QR.")
+            GymStatusText("Necesitamos permiso de cámara para leer el QR.", error = true)
             LudusButton(text = "Conceder permiso", onClick = {
                 permissionLauncher.launch(Manifest.permission.CAMERA)
             })
@@ -303,11 +326,12 @@ fun GymQrScannerScreen(
 private fun GymStatusText(
     text: String,
     success: Boolean = false,
+    error: Boolean = false,
 ) {
     Text(
         text = text,
         style = MaterialTheme.typography.bodySmall,
-        color = if (success) Emerald else if (text.contains("no ", true) || text.contains("No ", true)) Ignition else Muted,
+        color = if (success) Emerald else if (error || text.contains("no ", true) || text.contains("No ", true)) Ignition else Muted,
         modifier = Modifier.padding(top = 4.dp),
     )
 }

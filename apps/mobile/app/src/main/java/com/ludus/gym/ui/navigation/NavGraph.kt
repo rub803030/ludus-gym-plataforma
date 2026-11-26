@@ -180,6 +180,11 @@ fun LudusNavHost(deepLinkToken: String? = null) {
                 onDetected = { raw ->
                     linkGymViewModel.onScanned(raw) { goHome() }
                 },
+                onRetry = { raw ->
+                    linkGymViewModel.onScanned(raw) { goHome() }
+                },
+                errorMessage = linkGymViewModel.errorMessage,
+                isLoading = linkGymViewModel.isLoading,
                 onBack = { navController.popBackStack() },
             )
         }

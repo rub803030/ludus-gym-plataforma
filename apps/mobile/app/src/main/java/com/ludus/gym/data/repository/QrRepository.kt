@@ -6,11 +6,12 @@ import com.ludus.gym.data.local.QrCredentialEntity
 import com.ludus.gym.data.local.TokenProvider
 import com.ludus.gym.data.remote.ApiErrorMessages
 import com.ludus.gym.data.remote.ApiService
-import com.ludus.gym.data.remote.NetworkMonitor
+import com.ludus.gym.data.remote.NetworkStatus
 import com.ludus.gym.data.remote.dto.QrTokenDto
 import com.ludus.gym.data.remote.dto.QrTokenRequestDto
 import com.ludus.gym.domain.model.QrPayload
 import com.ludus.gym.domain.model.QrTicket
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -22,7 +23,7 @@ class QrRepository(
     private val api: ApiService,
     private val dao: LudusDao,
     private val tokens: TokenProvider,
-    private val network: NetworkMonitor,
+    private val network: NetworkStatus,
 ) {
     private val _ticket = MutableStateFlow<QrTicket?>(null)
     val ticket: StateFlow<QrTicket?> = _ticket.asStateFlow()
@@ -36,29 +37,45 @@ class QrRepository(
         val now = System.currentTimeMillis()
         val activeGymId = tokens.activeGymId()
         val dto = if (network.isOnline()) {
-            runCatching { api.qrToken(QrTokenRequestDto(gymId = activeGymId)) }.getOrNull()
-        } else {
-            null
-        }
-        if (dto != null) {
-            val value = dto.value()
-            if (!value.isNullOrBlank()) {
-                dto.offlineCredential?.let { cacheOfflineCredential(it, now) }
-                val gymId = dto.gymId?.takeIf { it.isNotBlank() }
-                    ?: QrPayload.parse(value)?.gymId?.takeIf { it.isNotBlank() }
-                    ?: activeGymId
-                val live = QrTicket(
-                    token = value,
-                    validUntilMillis = expiryMillis(dto, now),
-                    offline = false,
-                    serverExpiresAt = dto.expiresAt,
-                    gymId = gymId,
-                )
-                _ticket.value = live
-                return Result.success(live)
+            try {
+                api.qrToken(QrTokenRequestDto(gymId = activeGymId))
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: IOException) {
+                return offlineTicket(now, activeGymId, networkFailure = error)
+            } catch (error: Exception) {
+                _ticket.value = null
+                return Result.failure(error)
             }
+        } else {
+            return offlineTicket(now, activeGymId)
+        }
+        dto.offlineCredential?.let { cacheOfflineCredential(it, now) }
+        val value = dto.value()?.takeIf { it.isNotBlank() }
+        if (value == null) {
+            _ticket.value = null
+            return Result.failure(IllegalStateException("La API no devolvió un pase QR válido. Inténtalo de nuevo."))
         }
 
+        val gymId = dto.gymId?.takeIf { it.isNotBlank() }
+            ?: QrPayload.parse(value)?.gymId?.takeIf { it.isNotBlank() }
+            ?: activeGymId
+        val live = QrTicket(
+            token = value,
+            validUntilMillis = expiryMillis(dto, now),
+            offline = false,
+            serverExpiresAt = dto.expiresAt,
+            gymId = gymId,
+        )
+        _ticket.value = live
+        return Result.success(live)
+    }
+
+    private suspend fun offlineTicket(
+        now: Long,
+        activeGymId: String?,
+        networkFailure: IOException? = null,
+    ): Result<QrTicket> {
         val cached = dao.qrCredential()?.takeIf {
             it.expiresAtMillis > now &&
                 QrPayload.isOfflineCredential(it.raw, now) &&
@@ -66,7 +83,9 @@ class QrRepository(
         }
         if (cached == null) {
             _ticket.value = null
-            return Result.failure(IllegalStateException("Sin conexión y sin pase offline guardado para este gimnasio"))
+            return Result.failure(
+                networkFailure ?: IllegalStateException("Sin conexión y sin pase offline guardado para este gimnasio"),
+            )
         }
         val offline = QrTicket(
             token = cached.raw,
@@ -91,7 +110,11 @@ class QrRepository(
                 (activeGymId.isNullOrBlank() || it.gymId == activeGymId)
         }?.let { return it }
         val dto = if (network.isOnline()) {
-            runCatching { api.qrToken(QrTokenRequestDto(gymId = activeGymId)) }.getOrNull()
+            try {
+                api.qrToken(QrTokenRequestDto(gymId = activeGymId))
+            } catch (_: IOException) {
+                return null
+            }
         } else {
             null
         }
@@ -124,9 +147,7 @@ class QrRepository(
         )
     }
 
-    fun readableError(error: Throwable): String =
-        if (error is IOException) "Sin conexión: se muestra el último pase offline guardado."
-        else ApiErrorMessages.readable(error)
+    fun readableError(error: Throwable): String = ApiErrorMessages.readable(error)
 
     private fun expiryMillis(dto: QrTokenDto, nowMillis: Long): Long {
         dto.expiresAt?.let { raw ->

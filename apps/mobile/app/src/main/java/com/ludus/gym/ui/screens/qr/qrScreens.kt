@@ -94,7 +94,10 @@ fun QrScreen(
                     .background(SurfaceRaised),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(text = "Generando pase…", color = Ink)
+                Text(
+                    text = if (viewModel.message == null) "Generando pase…" else "No pudimos generar tu pase.",
+                    color = if (viewModel.message == null) Ink else Ignition,
+                )
             }
         }
 

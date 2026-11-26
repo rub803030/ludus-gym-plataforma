@@ -4,11 +4,15 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 
-class NetworkMonitor(context: Context) {
+fun interface NetworkStatus {
+    fun isOnline(): Boolean
+}
+
+class NetworkMonitor(context: Context) : NetworkStatus {
     private val manager = context.applicationContext
         .getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
 
-    fun isOnline(): Boolean {
+    override fun isOnline(): Boolean {
         val network = manager.activeNetwork ?: return false
         val capabilities = manager.getNetworkCapabilities(network) ?: return false
         return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
