@@ -41,4 +41,15 @@ extension View {
     func keyboardAware() -> some View {
         modifier(KeyboardAwareModifier())
     }
+
+    /// Vincula un campo con un `@FocusState` y le asigna una identidad estable
+    /// para que `ScrollViewReader` pueda desplazarse hasta él al recibir el foco.
+    func focusedField<Field: Hashable>(
+        _ field: Field,
+        focus: FocusState<Field?>.Binding
+    ) -> some View {
+        self
+            .focused(focus, equals: field)
+            .id(field)
+    }
 }

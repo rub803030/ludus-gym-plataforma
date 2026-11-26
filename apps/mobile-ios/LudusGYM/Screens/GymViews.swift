@@ -5,54 +5,68 @@ struct LinkGymView: View {
     @Environment(AppRouter.self) private var router
     @Environment(ThemeStore.self) private var theme
     @State private var viewModel = LinkGymViewModel()
+    @FocusState private var focus: Field?
+
+    private enum Field: Hashable { case code }
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                LudusScreenHeader(
-                    title: "Vincular gimnasio",
-                    subtitle: "Ir al inicio",
-                    showsBack: true,
-                    back: { router.back() }
-                )
+            ScrollViewReader { proxy in
+                VStack(alignment: .leading, spacing: 18) {
+                    LudusScreenHeader(
+                        title: "Vincular gimnasio",
+                        subtitle: "Ir al inicio",
+                        showsBack: true,
+                        back: { router.back() }
+                    )
 
-                Text("Escribe el código LUDUS-XXXX o escanea el QR del gimnasio")
-                    .font(.ludusBody(14))
-                    .foregroundStyle(theme.palette.muted)
-
-                LudusTextField(
-                    title: "Código del gimnasio",
-                    placeholder: "LUDUS-A7K2",
-                    text: $viewModel.code,
-                    autocapitalization: .allCharacters
-                )
-
-                if let error = viewModel.errorMessage {
-                    Text(error)
+                    Text("Escribe el código LUDUS-XXXX o escanea el QR del gimnasio")
                         .font(.ludusBody(14))
-                        .foregroundStyle(theme.palette.ignition)
-                }
-                if let message = viewModel.message {
-                    Text(message)
-                        .font(.ludusBody(14))
-                        .foregroundStyle(theme.palette.emerald)
-                }
+                        .foregroundStyle(theme.palette.muted)
 
-                LudusButton(title: "Vincularme", isLoading: viewModel.isLoading) {
-                    Task {
-                        if await viewModel.submit() { router.goHome() }
+                    LudusTextField(
+                        title: "Código del gimnasio",
+                        placeholder: "LUDUS-A7K2",
+                        text: $viewModel.code,
+                        autocapitalization: .allCharacters,
+                        submitLabel: .done,
+                        onSubmit: { focus = nil }
+                    )
+                    .focusedField(Field.code, focus: $focus)
+
+                    if let error = viewModel.errorMessage {
+                        Text(error)
+                            .font(.ludusBody(14))
+                            .foregroundStyle(theme.palette.ignition)
+                    }
+                    if let message = viewModel.message {
+                        Text(message)
+                            .font(.ludusBody(14))
+                            .foregroundStyle(theme.palette.emerald)
+                    }
+
+                    LudusButton(title: "Vincularme", isLoading: viewModel.isLoading) {
+                        Task {
+                            if await viewModel.submit() { router.goHome() }
+                        }
+                    }
+
+                    LudusButton(title: "Escanear QR del gimnasio", variant: .secondary) {
+                        router.goTo(.escanearQRGimnasio)
+                    }
+
+                    LudusButton(title: "Mis gimnasios", variant: .ghost) {
+                        router.goTo(.misGimnasios)
                     }
                 }
-
-                LudusButton(title: "Escanear QR del gimnasio", variant: .secondary) {
-                    router.goTo(.escanearQRGimnasio)
-                }
-
-                LudusButton(title: "Mis gimnasios", variant: .ghost) {
-                    router.goTo(.misGimnasios)
+                .padding(24)
+                .onChange(of: focus) { _, newValue in
+                    guard let newValue else { return }
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        proxy.scrollTo(newValue, anchor: .center)
+                    }
                 }
             }
-            .padding(24)
         }
         .background(theme.palette.canvas.ignoresSafeArea())
         .keyboardAware()
@@ -287,5 +301,214 @@ struct MyGymsView: View {
         }
         .background(theme.palette.canvas.ignoresSafeArea())
         .task { await viewModel.refresh() }
+    }
+}
+
+/// Registro público de gimnasios: no pide sesión ni comprueba el rol del socio.
+struct RegisterGymView: View {
+    @Environment(AppRouter.self) private var router
+    @Environment(ThemeStore.self) private var theme
+    @State private var viewModel = RegisterGymViewModel()
+    @FocusState private var focus: Field?
+
+    private enum Field: Hashable {
+        case gymName, slug, ownerName, email, password, contactEmail, phone, address,
+             city, state, postalCode, legalRepresentative, rfc, website, socialMedia,
+             description, branchCount, timezone, capacity, openingHours
+    }
+
+    var body: some View {
+        ScrollView {
+            ScrollViewReader { proxy in
+                VStack(alignment: .leading, spacing: 18) {
+                    LudusScreenHeader(
+                        title: "Registrar gimnasio",
+                        subtitle: "Necesitas la autorización de un administrador",
+                        showsBack: true,
+                        back: { router.back() }
+                    )
+
+                    if let info = viewModel.success {
+                        successView(info)
+                    } else {
+                        formFields
+
+                        if let error = viewModel.errorMessage {
+                            Text(error)
+                                .font(.ludusBody(14))
+                                .foregroundStyle(theme.palette.ignition)
+                        }
+
+                        LudusButton(title: "Enviar registro", isLoading: viewModel.isLoading) {
+                            Task { await viewModel.submit() }
+                        }
+                    }
+
+                    LudusButton(title: "Volver al inicio de sesión", variant: .ghost) {
+                        router.replace(with: .login)
+                    }
+                }
+                .padding(24)
+                .onChange(of: focus) { _, newValue in
+                    guard let newValue else { return }
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        proxy.scrollTo(newValue, anchor: .center)
+                    }
+                }
+            }
+        }
+        .background(theme.palette.canvas.ignoresSafeArea())
+        .keyboardAware()
+    }
+
+    private var formFields: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Group {
+                sectionTitle("Datos del gimnasio")
+                field("Nombre del gimnasio", placeholder: "Ludus Norte", text: $viewModel.gymName,
+                      field: .gymName, next: .slug)
+                field("Identificador (opcional)", placeholder: "ludus-norte", text: $viewModel.slug,
+                      field: .slug, next: .description, autocapitalization: .never)
+                field("Descripción (opcional)", placeholder: "Qué ofrece tu gimnasio", text: $viewModel.description,
+                      field: .description, next: .website)
+                field("Sitio web (opcional)", placeholder: "https://ludusgym.com", text: $viewModel.website,
+                      field: .website, next: .socialMedia, keyboard: .URL, autocapitalization: .never)
+                field("Redes sociales (opcional)", placeholder: "@ludusgym", text: $viewModel.socialMedia,
+                      field: .socialMedia, next: .branchCount, autocapitalization: .never)
+                field("Número de sucursales (opcional)", placeholder: "1", text: $viewModel.branchCount,
+                      field: .branchCount, next: .timezone, keyboard: .numberPad)
+                field("Zona horaria (opcional)", placeholder: "America/Mexico_City", text: $viewModel.timezone,
+                      field: .timezone, next: .capacity, autocapitalization: .never)
+                field("Capacidad (opcional)", placeholder: "150", text: $viewModel.capacity,
+                      field: .capacity, next: .openingHours, keyboard: .numberPad)
+                field("Horario (opcional)", placeholder: "Lun–Vie 06:00–22:00", text: $viewModel.openingHours,
+                      field: .openingHours, next: .ownerName)
+            }
+
+            Group {
+                sectionTitle("Propietario y contacto")
+                field("Nombre del propietario", placeholder: "María Pérez", text: $viewModel.ownerName,
+                      field: .ownerName, next: .email)
+                field("Correo de acceso", placeholder: "dueno@ludusgym.com", text: $viewModel.email,
+                      field: .email, next: .password, keyboard: .emailAddress, autocapitalization: .never)
+                field("Contraseña (mínimo 12 caracteres)", placeholder: "ClaveSegura2026!",
+                      text: $viewModel.password, field: .password, next: .contactEmail,
+                      secure: !viewModel.passwordVisible)
+                Button(action: { viewModel.passwordVisible.toggle() }) {
+                    Text(viewModel.passwordVisible ? "Ocultar" : "Ver")
+                        .font(.ludusTitle(13))
+                        .frame(minHeight: 48)
+                }
+                .foregroundStyle(theme.palette.volt)
+                field("Correo de contacto", placeholder: "contacto@ludusgym.com", text: $viewModel.contactEmail,
+                      field: .contactEmail, next: .phone, keyboard: .emailAddress, autocapitalization: .never)
+                field("Teléfono", placeholder: "5512345678", text: $viewModel.phone,
+                      field: .phone, next: .address, keyboard: .phonePad)
+                field("Dirección", placeholder: "Av. Insurgentes 123, Roma Norte", text: $viewModel.address,
+                      field: .address, next: .city)
+                field("Ciudad", placeholder: "Ciudad de México", text: $viewModel.city,
+                      field: .city, next: .state)
+            }
+
+            Group {
+                field("Estado", placeholder: "CDMX", text: $viewModel.state,
+                      field: .state, next: .postalCode)
+                field("Código postal", placeholder: "06700", text: $viewModel.postalCode,
+                      field: .postalCode, next: .legalRepresentative, keyboard: .numberPad)
+
+                sectionTitle("Representante legal")
+                field("Representante legal", placeholder: "María Pérez", text: $viewModel.legalRepresentative,
+                      field: .legalRepresentative, next: .rfc)
+                field("RFC", placeholder: "PEPM900101ABC", text: $viewModel.rfc,
+                      field: .rfc, autocapitalization: .allCharacters)
+
+                sectionTitle("Configuración")
+                Text("Moneda: MXN")
+                    .font(.ludusBody(14))
+                    .foregroundStyle(theme.palette.muted)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func sectionTitle(_ title: String) -> some View {
+        Text(title)
+            .font(.ludusTitle(17))
+            .foregroundStyle(theme.palette.volt)
+            .padding(.top, 6)
+    }
+
+    @ViewBuilder
+    private func field(
+        _ title: String,
+        placeholder: String,
+        text: Binding<String>,
+        field: Field,
+        next: Field? = nil,
+        keyboard: UIKeyboardType = .default,
+        autocapitalization: UITextAutocapitalizationType = .none,
+        secure: Bool = false
+    ) -> some View {
+        LudusTextField(
+            title: title,
+            placeholder: placeholder,
+            text: text,
+            isSecure: secure,
+            keyboard: keyboard,
+            autocapitalization: autocapitalization,
+            submitLabel: next == nil ? .done : .next,
+            onSubmit: {
+                if let next { focus = next } else { focus = nil }
+            }
+        )
+        .focusedField(field, focus: $focus)
+    }
+
+    @ViewBuilder
+    private func successView(_ info: GymRegistrationInfo) -> some View {
+        LudusCard {
+            Text("Registro recibido. Confirma tu correo y espera la autorización de un administrador.")
+                .font(.ludusTitle(18))
+                .foregroundStyle(theme.palette.ink)
+            Text("Gimnasio: \(info.gymName)")
+                .font(.ludusBody(14))
+                .foregroundStyle(theme.palette.muted)
+            if let email = info.ownerEmail {
+                Text("Propietario: \(email)")
+                    .font(.ludusBody(14))
+                    .foregroundStyle(theme.palette.muted)
+            }
+            if let email = info.verificationEmail {
+                Text("Verificación enviada a: \(email)")
+                    .font(.ludusBody(14))
+                    .foregroundStyle(theme.palette.muted)
+            }
+            if let expiresAt = info.verificationExpiresAt {
+                Text("Vence: \(expiresAt)")
+                    .font(.ludusBody(13))
+                    .foregroundStyle(theme.palette.muted)
+            }
+            if let email = info.approvalEmail {
+                Text("Autorización: \(email)")
+                    .font(.ludusBody(14))
+                    .foregroundStyle(theme.palette.muted)
+            }
+            if let link = info.verificationDevLink, let url = URL(string: link) {
+                Link("Abrir enlace de verificación", destination: url)
+                    .font(.ludusTitle(15))
+                    .foregroundStyle(theme.palette.volt)
+                    .frame(minHeight: 48)
+            }
+            if let link = info.approvalDevLink, let url = URL(string: link) {
+                Link("Abrir enlace de autorización", destination: url)
+                    .font(.ludusTitle(15))
+                    .foregroundStyle(theme.palette.volt)
+                    .frame(minHeight: 48)
+            }
+        }
+
+        LudusButton(title: "Registrar otro gimnasio", variant: .secondary) {
+            viewModel.reset()
+        }
     }
 }

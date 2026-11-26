@@ -62,6 +62,14 @@ enum APIErrorMessages {
             return "Tu correo aún no está verificado. Revisa tu bandeja."
         case "GYM_NOT_ACTIVE":
             return "Este gimnasio todavía no está activo."
+        case "CONFLICT":
+            return "Ya existe un registro con esos datos. Revisa el correo y el nombre del gimnasio."
+        case "ADMIN_NOT_CONFIGURED":
+            return "No hay un administrador disponible para autorizar el registro. Inténtalo más tarde."
+        case "VERIFICATION_TOKEN_INVALID":
+            return "El enlace de verificación no es válido. Solicita uno nuevo."
+        case "VERIFICATION_TOKEN_EXPIRED":
+            return "El enlace de verificación expiró. Solicita uno nuevo."
         case "VALIDATION_ERROR":
             return serverMessage.isEmpty ? "Revisa los datos introducidos." : serverMessage
         case "IO_ERROR":
@@ -97,7 +105,8 @@ enum APIErrorMessages {
         let text = String(data: data, encoding: .utf8) ?? ""
         let known = ["CROSS_GYM_PASS", "NO_GYM", "GYM_NOT_ACTIVE", "EMAIL_NOT_VERIFIED",
                      "IDEMPOTENCY_REPLAY", "CONFLICT", "VALIDATION_ERROR", "UNAUTHORIZED",
-                     "RATE_LIMITED", "NOT_FOUND", "FORBIDDEN"]
+                     "RATE_LIMITED", "NOT_FOUND", "FORBIDDEN", "ADMIN_NOT_CONFIGURED",
+                     "VERIFICATION_TOKEN_INVALID", "VERIFICATION_TOKEN_EXPIRED"]
         let found = known.first { text.range(of: $0) != nil }
         return APIFailure(status: status, code: found, message: text.isEmpty ? nil : text)
     }

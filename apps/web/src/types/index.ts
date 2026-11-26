@@ -2,7 +2,7 @@
  *  the API is normalized at the edge (see lib/normalize.ts) so a rename in a
  *  backend response never leaks into a feature component. */
 
-export type Role = 'OWNER' | 'MANAGER' | 'STAFF' | 'MEMBER'
+export type Role = 'ADMIN' | 'OWNER' | 'MANAGER' | 'STAFF' | 'MEMBER'
 export type MemberStatus = 'active' | 'pending' | 'expired' | 'overdue' | 'inactive'
 export type PaymentMethod = 'cash' | 'card' | 'transfer'
 export type PaymentStatus = 'pending' | 'paid' | 'refunded' | 'failed'
@@ -118,18 +118,38 @@ export interface GymRegisterInput {
   ownerName: string
   email: string
   password: string
+  contactEmail: string
+  phone: string
+  address: string
+  city: string
+  state: string
+  postalCode: string
+  legalRepresentative: string
+  rfc: string
+  website?: string
+  socialMedia?: string
+  description?: string
+  branchCount?: number
   timezone: string
   capacity: number
   currency: 'MXN'
-  address?: string
-  phone?: string
   openingHours?: string
 }
 
 export interface GymProfileInput {
   name?: string
   address?: string | null
+  city?: string | null
+  state?: string | null
+  postalCode?: string | null
+  contactEmail?: string | null
   phone?: string | null
+  legalRepresentative?: string | null
+  rfc?: string | null
+  website?: string | null
+  socialMedia?: string | null
+  description?: string | null
+  branchCount?: number
   openingHours?: string | null
   logoUrl?: string | null
   timezone?: string
@@ -148,20 +168,61 @@ export interface GymProfile {
   capacity: number
   currency: string
   address: string | null
+  city: string | null
+  state: string | null
+  postalCode: string | null
+  contactEmail: string | null
   phone: string | null
+  legalRepresentative: string | null
+  rfc: string | null
+  website: string | null
+  socialMedia: string | null
+  description: string | null
+  branchCount: number
   openingHours: string | null
   logoUrl: string | null
+  approvedAt: string | null
+}
+
+export interface VerificationIssue {
+  email: string
+  expiresAt: string
+  devToken?: string
+  devLink?: string
 }
 
 export interface GymRegistration {
-  gym: { id: string; name: string; slug: string; status: GymStatus }
+  gym: GymProfile
   owner: { email: string; fullName: string }
-  verification: { email: string; expiresAt: string; devToken?: string; devLink?: string }
+  verification: VerificationIssue
+  approval: VerificationIssue
 }
 
 export interface GymVerification {
   ok: boolean
+  message: string
   gym: { id: string; name: string; status: GymStatus; publicCode: string; enrollmentQrToken: string }
+}
+
+export interface PendingGym {
+  id: string
+  name: string
+  slug: string
+  status: GymStatus
+  address: string
+  city: string
+  state: string
+  postalCode: string
+  contactEmail: string
+  phone: string
+  legalRepresentative: string
+  rfc: string
+  website: string
+  socialMedia: string
+  description: string
+  branchCount: number
+  openingHours: string
+  createdAt: string
 }
 
 export interface StaffUser {

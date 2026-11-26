@@ -25,7 +25,7 @@ export function VerifyGym() {
       const verification = await api.gyms.verify(value)
       setResult(verification)
       setState('success')
-      setMessage('Gimnasio verificado correctamente. Ya puedes iniciar sesión en la consola.')
+      setMessage(verification.message || 'Correo confirmado. El gimnasio queda a la espera de la autorización de un administrador.')
     } catch (error) {
       setResult(null)
       setState('error')
@@ -49,7 +49,8 @@ export function VerifyGym() {
         Verificar gimnasio
       </h1>
       <p className="mt-3 text-sm leading-relaxed text-muted">
-        Confirmamos el enlace de verificación para activar tu gimnasio. No necesitas iniciar sesión.
+        Confirmamos el correo del propietario. El alta se completa cuando un administrador autoriza el gimnasio desde
+        el enlace recibido por correo.
       </p>
 
       <div className="mt-8 space-y-5">
@@ -61,7 +62,7 @@ export function VerifyGym() {
 
         {state === 'success' && result ? (
           <div role="status" className="space-y-4 border-l-2 border-volt bg-surface px-4 py-5">
-            <p className="text-sm font-semibold uppercase tracking-[0.12em] text-volt">Gimnasio verificado</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.12em] text-volt">Correo confirmado</p>
             <p className="text-sm leading-relaxed text-ink">{result.gym.name}</p>
             {result.gym.publicCode ? (
               <p className="tabular text-xs leading-relaxed text-muted">

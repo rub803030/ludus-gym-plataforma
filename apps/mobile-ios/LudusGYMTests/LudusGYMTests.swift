@@ -1,3 +1,4 @@
+import Foundation
 import XCTest
 @testable import LudusGYM
 
@@ -138,5 +139,103 @@ final class ContractMappingTests: XCTestCase {
         SecureStore.clearSession()
         XCTAssertNil(SecureStore.session)
         XCTAssertEqual(SecureStore.deviceId, deviceBefore)
+    }
+}
+
+final class GymRegistrationTests: XCTestCase {
+    private func validRequest(
+        gymName: String = "Ludus Norte",
+        email: String = "dueno@example.com",
+        password: String = "ClaveSegura2026!"
+    ) -> RegisterGymRequest {
+        RegisterGymRequest(
+            gymName: gymName,
+            ownerName: "María Pérez",
+            email: email,
+            password: password,
+            contactEmail: "contacto@example.com",
+            phone: "5512345678",
+            address: "Av. Insurgentes 123, Roma Norte",
+            city: "Ciudad de México",
+            state: "CDMX",
+            postalCode: "06700",
+            legalRepresentative: "María Pérez",
+            rfc: "PEPM900101ABC",
+            branchCount: 2
+        )
+    }
+
+    func testRequestEncodesContractKeysAndMxn() throws {
+        let data = try JSONEncoder().encode(validRequest())
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+
+        XCTAssertEqual(json["gymName"] as? String, "Ludus Norte")
+        XCTAssertEqual(json["ownerName"] as? String, "María Pérez")
+        XCTAssertEqual(json["currency"] as? String, "MXN")
+        XCTAssertEqual(json["branchCount"] as? Int, 2)
+        XCTAssertNil(json["website"])
+        XCTAssertNil(json["capacity"])
+    }
+
+    func testResponseDecodesVerificationAndApproval() throws {
+        let json = """
+        {"gym":{"id":"g1","name":"Ludus Norte","status":"PENDING_VERIFICATION"},
+         "owner":{"email":"dueno@example.com","fullName":"María Pérez"},
+         "verification":{"email":"dueno@example.com","expiresAt":"2026-12-01T00:00:00Z",
+                          "devToken":"token-de-prueba","devLink":"https://example.test/verificar"},
+         "approval":{"email":"admin@example.com","expiresAt":"2026-12-02T00:00:00Z",
+                     "devLink":"https://example.test/autorizar"}}
+        """
+        let dto = try JSONDecoder().decode(RegisterGymResponseDTO.self, from: Data(json.utf8))
+        XCTAssertEqual(dto.gym?.status, "PENDING_VERIFICATION")
+        XCTAssertEqual(dto.owner?.fullName, "María Pérez")
+        XCTAssertEqual(dto.verification?.devLink, "https://example.test/verificar")
+        XCTAssertEqual(dto.approval?.email, "admin@example.com")
+        XCTAssertEqual(dto.approval?.devLink, "https://example.test/autorizar")
+    }
+
+    func testValidationAcceptsValidRequest() {
+        XCTAssertNil(GymRegistrationValidation.errorMessage(for: validRequest()))
+    }
+
+    func testValidationRejectsOutOfRangeFields() {
+        XCTAssertNotNil(GymRegistrationValidation.errorMessage(
+            for: validRequest(gymName: "L")
+        ))
+        XCTAssertNotNil(GymRegistrationValidation.errorMessage(
+            for: validRequest(email: "correo-sin-arroba")
+        ))
+        XCTAssertNotNil(GymRegistrationValidation.errorMessage(
+            for: validRequest(password: "corta")
+        ))
+        XCTAssertNotNil(GymRegistrationValidation.errorMessage(
+            for: validRequest(gymName: String(repeating: "a", count: 121))
+        ))
+    }
+
+    func testIntegerValidationLimits() {
+        XCTAssertNil(GymRegistrationValidation.integerMessage("", label: "Sucursales", min: 1, max: 1000))
+        XCTAssertNil(GymRegistrationValidation.integerMessage("2", label: "Sucursales", min: 1, max: 1000))
+        XCTAssertNotNil(GymRegistrationValidation.integerMessage("abc", label: "Sucursales", min: 1))
+        XCTAssertNotNil(GymRegistrationValidation.integerMessage("0", label: "Sucursales", min: 1))
+        XCTAssertNotNil(GymRegistrationValidation.integerMessage("1001", label: "Sucursales", min: 1, max: 1000))
+    }
+
+    func testRegistrationErrorsAreTranslated() {
+        let conflict = APIError.http(APIFailure(status: 409, code: "CONFLICT", message: "duplicado"))
+        XCTAssertEqual(
+            APIErrorMessages.readable(conflict),
+            "Ya existe un registro con esos datos. Revisa el correo y el nombre del gimnasio."
+        )
+        let noAdmin = APIError.http(APIFailure(status: 503, code: "ADMIN_NOT_CONFIGURED", message: nil))
+        XCTAssertEqual(
+            APIErrorMessages.readable(noAdmin),
+            "No hay un administrador disponible para autorizar el registro. Inténtalo más tarde."
+        )
+        let expired = APIError.http(APIFailure(status: 410, code: "VERIFICATION_TOKEN_EXPIRED", message: nil))
+        XCTAssertEqual(
+            APIErrorMessages.readable(expired),
+            "El enlace de verificación expiró. Solicita uno nuevo."
+        )
     }
 }

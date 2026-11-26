@@ -16,6 +16,8 @@ import com.ludus.gym.data.remote.dto.OccupancyDto
 import com.ludus.gym.data.remote.dto.PaymentDto
 import com.ludus.gym.data.remote.dto.QrTokenDto
 import com.ludus.gym.data.remote.dto.QrTokenRequestDto
+import com.ludus.gym.data.remote.dto.RegisterGymRequestDto
+import com.ludus.gym.data.remote.dto.RegisterGymResponseDto
 import com.ludus.gym.data.remote.dto.RegisterMemberRequestDto
 import com.ludus.gym.data.remote.dto.RegisterMemberResponseDto
 import com.ludus.gym.data.remote.dto.ResendVerificationRequestDto
@@ -28,7 +30,7 @@ import com.ludus.gym.data.remote.dto.WorkoutLogRequestDto
 import com.ludus.gym.data.remote.dto.WorkoutLogResponseDto
 
 /** API en memoria para probar ViewModels sin red ni Android. */
-class FakeApiService : ApiService {
+open class FakeApiService : ApiService {
     var occupancy: OccupancyDto = OccupancyDto(current = 12, capacity = 20)
     var classes: List<ClassDto> = emptyList()
     var nutrition: List<NutritionPlanDto> = emptyList()
@@ -40,6 +42,7 @@ class FakeApiService : ApiService {
     val cancelledIds = mutableListOf<String>()
 
     var registration: RegisterMemberResponseDto? = null
+    var gymRegistration: RegisterGymResponseDto? = null
     var joinResponse: JoinGymResponseDto? = null
     var switchResponse: SwitchGymResponseDto? = null
     var myGymsResponse: MyGymsDto? = null
@@ -48,6 +51,7 @@ class FakeApiService : ApiService {
     val switchGymIds = mutableListOf<String>()
     val qrGymIds = mutableListOf<String?>()
     val registeredEmails = mutableListOf<String>()
+    val registeredGyms = mutableListOf<RegisterGymRequestDto>()
 
     override suspend fun login(request: LoginRequestDto): LoginResponseDto = unsupported()
     override suspend fun verifyEmail(request: VerifyEmailRequestDto): VerifyEmailResponseDto = unsupported()
@@ -57,6 +61,11 @@ class FakeApiService : ApiService {
     override suspend fun registerMember(request: RegisterMemberRequestDto): RegisterMemberResponseDto {
         registeredEmails += request.email
         return registration ?: unsupported()
+    }
+
+    open override suspend fun registerGym(request: RegisterGymRequestDto): RegisterGymResponseDto {
+        registeredGyms += request
+        return gymRegistration ?: unsupported()
     }
 
     override suspend fun joinGym(request: JoinGymRequestDto): JoinGymResponseDto {

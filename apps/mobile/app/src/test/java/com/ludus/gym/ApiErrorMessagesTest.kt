@@ -3,6 +3,7 @@ package com.ludus.gym
 import com.ludus.gym.data.remote.ApiErrorMessages
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import java.io.IOException
 
 /** Los errores multigimnasio llegan al socio en español. */
 class ApiErrorMessagesTest {
@@ -19,5 +20,21 @@ class ApiErrorMessagesTest {
     @Test
     fun `la causa de la api se expone cuando no hay traduccion`() {
         assertEquals("Código desconocido", ApiErrorMessages.readable(IllegalStateException("Código desconocido")))
+    }
+
+    @Test
+    fun `los mensajes contractuales de la api se conservan`() {
+        assertEquals(
+            "Tu correo aún no está verificado. Revisa tu bandeja.",
+            ApiErrorMessages.readable(IllegalStateException("EMAIL_NOT_VERIFIED")),
+        )
+        assertEquals(
+            "Este gimnasio todavía no está activo.",
+            ApiErrorMessages.readable(IllegalStateException("GYM_NOT_ACTIVE")),
+        )
+        assertEquals(
+            "Sin conexión. Revisa tu red e inténtalo de nuevo.",
+            ApiErrorMessages.readable(IOException("sin red")),
+        )
     }
 }

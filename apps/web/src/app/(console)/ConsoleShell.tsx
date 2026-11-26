@@ -23,7 +23,7 @@ interface NavItem {
   index: string
 }
 
-const NAV_GROUPS: Array<{ title: string; items: NavItem[] }> = [
+const BASE_NAV_GROUPS: Array<{ title: string; items: NavItem[] }> = [
   {
     title: 'Operación',
     items: [
@@ -47,6 +47,11 @@ const NAV_GROUPS: Array<{ title: string; items: NavItem[] }> = [
     items: [{ href: '/settings', label: 'Configuración', index: '09' }],
   },
 ]
+
+const ADMIN_NAV_GROUP: { title: string; items: NavItem[] } = {
+  title: 'Plataforma',
+  items: [{ href: '/admin/gyms', label: 'Autorizar gimnasios', index: '10' }],
+}
 
 const SHORTCUTS: Array<{ keys: string; label: string }> = [
   { keys: 'G · D', label: 'Ir a resumen' },
@@ -79,6 +84,7 @@ export function ConsoleShell({ principal, sessionError, children }: ConsoleShell
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
   const role = session?.principal.role ?? principal?.role ?? null
+  const navGroups = role === 'ADMIN' ? [...BASE_NAV_GROUPS, ADMIN_NAV_GROUP] : BASE_NAV_GROUPS
 
   useEffect(() => {
     hydrateSession()
@@ -140,7 +146,7 @@ export function ConsoleShell({ principal, sessionError, children }: ConsoleShell
     router.refresh()
   }
 
-  const currentLabel = NAV_GROUPS.flatMap((group) => group.items).find((item) => item.href === pathname)?.label ?? 'Consola'
+  const currentLabel = navGroups.flatMap((group) => group.items).find((item) => item.href === pathname)?.label ?? 'Consola'
 
   return (
     <div className="min-h-screen lg:grid lg:grid-cols-[264px_minmax(0,1fr)]">
@@ -165,7 +171,7 @@ export function ConsoleShell({ principal, sessionError, children }: ConsoleShell
         </div>
 
         <nav aria-label="Navegación principal" className="flex gap-2 overflow-x-auto px-4 pb-4 lg:mt-4 lg:flex-1 lg:flex-col lg:gap-0 lg:overflow-visible lg:px-4 lg:pb-0">
-          {NAV_GROUPS.map((group) => (
+          {navGroups.map((group) => (
             <div key={group.title} className="shrink-0 lg:mb-8">
               <p className="hidden px-3 pb-3 text-[9px] font-semibold uppercase tracking-[0.24em] text-muted/70 lg:block">
                 {group.title}

@@ -4,11 +4,16 @@ import com.ludus.gym.data.remote.dto.GymDto
 import com.ludus.gym.data.remote.dto.JoinGymResponseDto
 import com.ludus.gym.data.remote.dto.MyGymDto
 import com.ludus.gym.data.remote.dto.MyGymsDto
+import com.ludus.gym.data.remote.dto.RegisterGymResponseDto
+import com.ludus.gym.data.remote.dto.RegisteredGymDto
+import com.ludus.gym.data.remote.dto.RegisteredGymOwnerDto
 import com.ludus.gym.data.remote.dto.SwitchGymResponseDto
+import com.ludus.gym.data.remote.dto.VerificationIssueDto
 import com.ludus.gym.data.remote.dto.TokenPairDto
 import com.ludus.gym.data.remote.dto.toDomain
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -59,5 +64,31 @@ class GymContractTest {
         assertEquals(2, result.gyms.size)
         assertTrue(result.gyms.first().isActive)
         assertFalse(result.gyms.last().isActive)
+    }
+
+    @Test
+    fun `registrar gimnasio expone verificacion y autorizacion pendientes`() {
+        val response = RegisterGymResponseDto(
+            gym = RegisteredGymDto(
+                id = gymId,
+                name = "GYM Norte",
+                slug = "gym-norte",
+                status = "PENDING_VERIFICATION",
+            ),
+            owner = RegisteredGymOwnerDto(email = "owner@test.com", fullName = "Ana Pérez"),
+            verification = VerificationIssueDto(email = "owner@test.com", expiresAt = "2026-11-27T00:00:00Z"),
+            approval = VerificationIssueDto(email = "admin@test.com", expiresAt = "2026-11-28T00:00:00Z"),
+        )
+
+        val result = response.toDomain()
+
+        assertEquals(gymId, result.gymId)
+        assertEquals("gym-norte", result.slug)
+        assertEquals("PENDING_VERIFICATION", result.status)
+        assertEquals("owner@test.com", result.ownerEmail)
+        assertEquals("owner@test.com", result.verificationEmail)
+        assertEquals("admin@test.com", result.approvalEmail)
+        assertNull(result.verificationDevLink)
+        assertNull(result.approvalDevToken)
     }
 }

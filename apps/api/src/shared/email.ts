@@ -9,6 +9,18 @@ interface VerificationEmailInput {
   platform: 'web' | 'mobile'
 }
 
+interface TemplatedEmailInput {
+  to: string
+  name: string
+  link: string
+  platform: 'web' | 'mobile'
+  subject: string
+  headline: string
+  message: string
+  cta: string
+  footnote: string
+}
+
 const COOLDOWN_MS = 15 * 60 * 1000
 const cooldownUntil = new Map<string, number>()
 
@@ -73,28 +85,26 @@ async function pickAccount(accounts: SmtpAccount[], day: Date, limit: number): P
   return undefined
 }
 
-function buildContent(env: Env, input: VerificationEmailInput, recipient: string, deliveryNote: string) {
-  const audience = input.platform === 'web' ? 'la consola de operación' : 'la app Ludus GYM'
-  const subject = `Confirma tu correo · Ludus GYM — ${input.to}`
-  const text = `Hola ${input.name}, confirma tu correo para acceder a ${audience}: ${input.link} Este enlace expira en ${env.EMAIL_VERIFICATION_TTL_MINUTES} minutos.${deliveryNote}`
+function buildContent(input: TemplatedEmailInput, deliveryNote: string) {
+  const text = `${input.message} ${input.link} ${input.footnote}${deliveryNote}`
   const html = `
         <div style="background:#0b0b0d;color:#f5f5f5;font-family:Arial,sans-serif;padding:32px">
           <p style="font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:#c8ff2e">Ludus GYM</p>
-          <h1 style="font-size:28px;margin:16px 0">Confirma tu correo</h1>
-          <p style="color:#a1a1aa;line-height:1.6">Hola ${escapeHtml(input.name)}, verifica tu dirección para acceder a ${audience}.</p>
+          <h1 style="font-size:28px;margin:16px 0">${escapeHtml(input.headline)}</h1>
+          <p style="color:#a1a1aa;line-height:1.6">${escapeHtml(input.message)}</p>
           <p style="margin:28px 0">
-            <a href="${escapeHtml(input.link)}" style="background:#c8ff2e;color:#0b0b0d;padding:14px 22px;text-decoration:none;font-weight:bold">Verificar correo</a>
+            <a href="${escapeHtml(input.link)}" style="background:#c8ff2e;color:#0b0b0d;padding:14px 22px;text-decoration:none;font-weight:bold">${escapeHtml(input.cta)}</a>
           </p>
-          <p style="color:#71717a;font-size:12px">Este enlace expira en ${env.EMAIL_VERIFICATION_TTL_MINUTES} minutos. Si no fuiste tú, ignora este mensaje.</p>
+          <p style="color:#71717a;font-size:12px">${escapeHtml(input.footnote)}</p>
           ${deliveryNote ? `<p style="color:#71717a;font-size:12px">${escapeHtml(deliveryNote)}</p>` : ''}
         </div>
       `
-  return { audience, subject, text, html }
+  return { subject: input.subject, text, html }
 }
 
 async function sendViaResend(
   env: Env,
-  input: VerificationEmailInput,
+  input: TemplatedEmailInput,
   recipient: string,
   content: ReturnType<typeof buildContent>,
 ): Promise<{ id?: string; skipped: boolean }> {
@@ -122,12 +132,10 @@ async function sendViaResend(
 }
 
 /**
- * Correo de verificación. Con SMTP propio se entrega siempre al correo real del
- * socio, rotando entre cuentas al agotar el cupo diario. Sin SMTP se usa Resend;
- * su dominio de prueba solo entrega al dueño de la cuenta y por eso
- * RESEND_TEST_RECIPIENT mantiene funcional el modo demo.
+ * Entrega de correo con SMTP propio (rotación por cupo diario) y Resend como
+ * respaldo. Sin proveedor configurado solo se omite el envío en desarrollo.
  */
-export async function sendVerificationEmail(input: VerificationEmailInput): Promise<{ id?: string; skipped: boolean }> {
+async function sendTemplatedEmail(input: TemplatedEmailInput): Promise<{ id?: string; skipped: boolean }> {
   const env = loadEnv()
   const accounts = smtpAccounts(env)
   const fromAddress = (env.EMAIL_FROM.match(/<([^>]+)>/)?.[1] ?? env.EMAIL_FROM).trim()
@@ -135,7 +143,7 @@ export async function sendVerificationEmail(input: VerificationEmailInput): Prom
   const testRecipient = accounts.length > 0 || !usesTestSender ? undefined : env.RESEND_TEST_RECIPIENT
   const recipient = testRecipient || input.to
   const deliveryNote = recipient === input.to ? '' : ` Cuenta: ${input.to}. Entrega de prueba en ${recipient}.`
-  const content = buildContent(env, input, recipient, deliveryNote)
+  const content = buildContent(input, deliveryNote)
 
   if (accounts.length > 0) {
     const day = todayUtc()
@@ -173,11 +181,69 @@ export async function sendVerificationEmail(input: VerificationEmailInput): Prom
       return sendViaResend(env, input, input.to, content)
     }
     if (lastRejection) throw lastRejection
-    throw new Error('Todas las cuentas SMTP alcanzaron el cupo diario; no se pudo enviar la verificación')
+    throw new Error('Todas las cuentas SMTP alcanzaron el cupo diario; no se pudo enviar el correo')
   }
 
   if (!env.RESEND_API_KEY) {
     return { skipped: true }
   }
   return sendViaResend(env, input, recipient, content)
+}
+
+/** Verificación de correo de socios y equipo. */
+export async function sendVerificationEmail(input: VerificationEmailInput): Promise<{ id?: string; skipped: boolean }> {
+  const env = loadEnv()
+  const audience = input.platform === 'web' ? 'la consola de operación' : 'la app Ludus GYM'
+  return sendTemplatedEmail({
+    to: input.to,
+    name: input.name,
+    link: input.link,
+    platform: input.platform,
+    subject: `Confirma tu correo · Ludus GYM — ${input.to}`,
+    headline: 'Confirma tu correo',
+    message: `Hola ${input.name}, confirma tu dirección para acceder a ${audience}.`,
+    cta: 'Verificar correo',
+    footnote: `Este enlace expira en ${env.EMAIL_VERIFICATION_TTL_MINUTES} minutos. Si no fuiste tú, ignora este mensaje.`,
+  })
+}
+
+/** Enlace de un solo uso que autoriza el alta de un gimnasio. */
+export async function sendGymApprovalEmail(input: {
+  to: string
+  name: string
+  gymName: string
+  link: string
+}): Promise<{ id?: string; skipped: boolean }> {
+  const env = loadEnv()
+  return sendTemplatedEmail({
+    to: input.to,
+    name: input.name,
+    link: input.link,
+    platform: 'web',
+    subject: `Autoriza el alta de ${input.gymName} · Ludus GYM`,
+    headline: 'Autoriza un gimnasio',
+    message: `Hola ${input.name}, ${input.gymName} solicitó su alta en Ludus GYM. Revisa los datos y autoriza el gimnasio.`,
+    cta: 'Autorizar gimnasio',
+    footnote: `Este enlace expira en ${env.EMAIL_VERIFICATION_TTL_MINUTES} minutos y solo puede usarse una vez.`,
+  })
+}
+
+/** Aviso al gimnasio cuando un administrador completó la autorización. */
+export async function sendGymActivatedEmail(input: {
+  to: string
+  name: string
+  gymName: string
+  link: string
+}): Promise<{ id?: string; skipped: boolean }> {
+  return sendTemplatedEmail({
+    to: input.to,
+    name: input.name,
+    link: input.link,
+    platform: 'web',
+    subject: `${input.gymName} fue autorizado · Ludus GYM`,
+    headline: 'Gimnasio autorizado',
+    message: `Hola ${input.name}, ${input.gymName} ya está activo en Ludus GYM. Puedes entrar a la consola con tu cuenta.`,
+    cta: 'Ir a la consola',
+    footnote: 'Guarda este correo como comprobante de la autorización.',
+  })
 }

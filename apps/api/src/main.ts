@@ -19,6 +19,7 @@ import { registerAnalyticsRoutes } from './modules/analytics-audit/routes.js'
 import { registerStaffRoutes } from './modules/staff-management/routes.js'
 import { registerStorageRoutes } from './modules/storage/routes.js'
 import { registerGymRoutes } from './modules/gyms/routes.js'
+import { registerAdminRoutes } from './modules/admin/routes.js'
 
 export async function buildApp() {
   let env
@@ -43,6 +44,7 @@ export async function buildApp() {
       RESEND_TEST_RECIPIENT: process.env.RESEND_TEST_RECIPIENT || undefined,
       WEB_APP_URL: process.env.WEB_APP_URL ?? 'http://localhost:3000',
       EMAIL_VERIFICATION_TTL_MINUTES: Number(process.env.EMAIL_VERIFICATION_TTL_MINUTES ?? 30),
+      ADMIN_APPROVAL_EMAILS: process.env.ADMIN_APPROVAL_EMAILS ?? '',
     }
   }
 
@@ -98,6 +100,7 @@ export async function buildApp() {
   await registerStaffRoutes(app)
   await registerStorageRoutes(app)
   await registerGymRoutes(app)
+  await registerAdminRoutes(app)
 
   const io = new SocketServer(app.server, {
     cors: { origin: env.CORS_ORIGIN, credentials: true },

@@ -9,8 +9,15 @@ describe('roles', () => {
     expect(canAccessMobile('OWNER')).toBe(false)
   })
   it('respeta jerarquía', () => {
+    expect(outranks('ADMIN', 'OWNER')).toBe(true)
     expect(outranks('OWNER', 'MANAGER')).toBe(true)
     expect(outranks('STAFF', 'MANAGER')).toBe(false)
+  })
+  it('reserva la autorización de gimnasios al ADMIN global', () => {
+    expect(canAccessWeb('ADMIN')).toBe(true)
+    expect(canAccessMobile('ADMIN')).toBe(false)
+    expect(hasPermission('ADMIN', 'gyms:approve')).toBe(true)
+    expect(hasPermission('OWNER', 'gyms:approve')).toBe(false)
   })
   it('protege cancelaciones', () => {
     expect(hasPermission('STAFF', 'payments:refund')).toBe(false)

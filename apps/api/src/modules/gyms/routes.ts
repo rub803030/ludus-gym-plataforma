@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import {
+  approveGymSchema,
   gymProfileSchema,
   registerGymSchema,
   verifyGymSchema,
@@ -14,7 +15,7 @@ import { requirePermission } from '../../shared/middleware/rbac.js'
 import { hashPassword } from '../../shared/password.js'
 import { writeAudit } from '../../shared/audit.js'
 import { verificationResponse } from '../auth/email-verification.js'
-import { issueGymVerification, verifyGymToken } from './gym-verification.js'
+import { approveGym, issueGymApproval, issueGymVerification, verifyGymToken } from './gym-verification.js'
 
 function parse<T>(schema: z.ZodType<T>, value: unknown): T {
   const result = schema.safeParse(value)
@@ -54,9 +55,20 @@ function toGymView(gym: Gym) {
     capacity: gym.capacity,
     currency: gym.currency,
     address: gym.address,
+    city: gym.city,
+    state: gym.state,
+    postalCode: gym.postalCode,
+    contactEmail: gym.contactEmail,
     phone: gym.phone,
+    legalRepresentative: gym.legalRepresentative,
+    rfc: gym.rfc,
+    website: gym.website,
+    socialMedia: gym.socialMedia,
+    description: gym.description,
+    branchCount: gym.branchCount,
     openingHours: gym.openingHours,
     logoUrl: gym.logoUrl,
+    approvedAt: gym.approvedAt,
   }
 }
 
@@ -64,7 +76,17 @@ function profileData(body: z.infer<typeof gymProfileSchema>) {
   return {
     name: body.name,
     address: body.address,
+    city: body.city,
+    state: body.state,
+    postalCode: body.postalCode,
+    contactEmail: body.contactEmail,
     phone: body.phone,
+    legalRepresentative: body.legalRepresentative,
+    rfc: body.rfc,
+    website: body.website,
+    socialMedia: body.socialMedia,
+    description: body.description,
+    branchCount: body.branchCount,
     openingHours: body.openingHours,
     logoUrl: body.logoUrl,
     timezone: body.timezone,
@@ -94,7 +116,17 @@ export async function registerGymRoutes(app: FastifyInstance): Promise<void> {
         capacity: body.capacity ?? 20,
         currency: body.currency ?? 'MXN',
         address: body.address,
+        city: body.city,
+        state: body.state,
+        postalCode: body.postalCode,
+        contactEmail: body.contactEmail.toLowerCase(),
         phone: body.phone,
+        legalRepresentative: body.legalRepresentative,
+        rfc: body.rfc.toUpperCase(),
+        website: body.website,
+        socialMedia: body.socialMedia,
+        description: body.description,
+        branchCount: body.branchCount,
         openingHours: body.openingHours,
       },
     })
@@ -113,12 +145,14 @@ export async function registerGymRoutes(app: FastifyInstance): Promise<void> {
       email: owner.email,
       ownerName: owner.fullName,
     })
+    const approval = await issueGymApproval(gym.id, gym.name)
 
     reply.code(201)
     return {
-      gym: { id: gym.id, name: gym.name, slug: gym.slug, status: gym.status },
+      gym: toGymView(gym),
       owner: { email: owner.email, fullName: owner.fullName },
       verification: verificationResponse(issued),
+      approval: verificationResponse(approval),
     }
   })
 
@@ -127,6 +161,24 @@ export async function registerGymRoutes(app: FastifyInstance): Promise<void> {
     const gym = await verifyGymToken(token)
     return {
       ok: true,
+      message: 'Correo del dueño confirmado. El gimnasio queda a la espera de la autorización de un administrador.',
+      gym: {
+        id: gym.id,
+        name: gym.name,
+        status: gym.status,
+        publicCode: gym.publicCode,
+        enrollmentQrToken: gym.enrollmentQrToken,
+      },
+    }
+  })
+
+  /** Autorización global por enlace de un solo uso recibido por correo. */
+  app.post('/api/gyms/approve', async (req) => {
+    const { token } = parse(approveGymSchema, req.body)
+    const gym = await approveGym(token)
+    return {
+      ok: true,
+      message: 'Gimnasio autorizado y activo. Ya puedes iniciar sesión en la consola.',
       gym: {
         id: gym.id,
         name: gym.name,

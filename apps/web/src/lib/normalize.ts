@@ -11,6 +11,7 @@ import type {
   NutritionPlanView,
   OccupancyView,
   Paginated,
+  PendingGym,
   PaymentMethod,
   PaymentStatus,
   PaymentView,
@@ -20,9 +21,10 @@ import type {
   Role,
   RoutineView,
   StaffUser,
+  VerificationIssue,
 } from '@/types'
 
-const ROLES: readonly string[] = ['OWNER', 'MANAGER', 'STAFF', 'MEMBER']
+const ROLES: readonly string[] = ['ADMIN', 'OWNER', 'MANAGER', 'STAFF', 'MEMBER']
 const GYM_STATUSES: readonly GymStatus[] = ['PENDING_VERIFICATION', 'ACTIVE', 'SUSPENDED']
 const PLAN_KEYS: ReadonlyArray<'gym_access' | 'classes' | 'nutrition' | 'guest_pass'> = [
   'gym_access',
@@ -255,9 +257,32 @@ export function normalizeGym(raw: unknown): GymProfile {
     capacity: asNumber(pick(r, 'capacity'), 20),
     currency: asString(pick(r, 'currency'), 'MXN'),
     address: asString(pick(r, 'address')) || null,
+    city: asString(pick(r, 'city')) || null,
+    state: asString(pick(r, 'state')) || null,
+    postalCode: asString(coalesce(pick(r, 'postalCode'), pick(r, 'postal_code'))) || null,
+    contactEmail: asString(coalesce(pick(r, 'contactEmail'), pick(r, 'contact_email'))) || null,
     phone: asString(pick(r, 'phone')) || null,
+    legalRepresentative: asString(coalesce(pick(r, 'legalRepresentative'), pick(r, 'legal_representative'))) || null,
+    rfc: asString(pick(r, 'rfc')) || null,
+    website: asString(pick(r, 'website')) || null,
+    socialMedia: asString(coalesce(pick(r, 'socialMedia'), pick(r, 'social_media'))) || null,
+    description: asString(pick(r, 'description')) || null,
+    branchCount: asNumber(coalesce(pick(r, 'branchCount'), pick(r, 'branch_count')), 1),
     openingHours: asString(coalesce(pick(r, 'openingHours'), pick(r, 'opening_hours'))) || null,
     logoUrl: asString(coalesce(pick(r, 'logoUrl'), pick(r, 'logo_url'))) || null,
+    approvedAt: asString(coalesce(pick(r, 'approvedAt'), pick(r, 'approved_at'))) || null,
+  }
+}
+
+function normalizeVerificationIssue(raw: unknown, fallbackEmail: string): VerificationIssue {
+  const issue = asRecord(raw)
+  const devToken = asString(pick(issue, 'devToken'))
+  const devLink = asString(pick(issue, 'devLink'))
+  return {
+    email: asString(pick(issue, 'email'), fallbackEmail),
+    expiresAt: asString(pick(issue, 'expiresAt')),
+    ...(devToken ? { devToken } : {}),
+    ...(devLink ? { devLink } : {}),
   }
 }
 
@@ -266,25 +291,15 @@ export function normalizeGymRegistration(raw: unknown): GymRegistration {
   const gym = asRecord(pick(r, 'gym'))
   const owner = asRecord(pick(r, 'owner'))
   const verification = asRecord(pick(r, 'verification'))
-  const devToken = asString(pick(verification, 'devToken'))
-  const devLink = asString(pick(verification, 'devLink'))
+  const ownerEmail = asString(pick(owner, 'email'), asString(pick(verification, 'email')))
   return {
-    gym: {
-      id: asString(pick(gym, 'id'), 'sin-id'),
-      name: asString(pick(gym, 'name'), 'Gimnasio'),
-      slug: asString(pick(gym, 'slug')),
-      status: normalizeGymStatus(pick(gym, 'status')),
-    },
+    gym: normalizeGym(gym),
     owner: {
-      email: asString(pick(owner, 'email'), asString(pick(verification, 'email'))),
+      email: ownerEmail,
       fullName: asString(pick(owner, 'fullName'), asString(pick(owner, 'ownerName'))),
     },
-    verification: {
-      email: asString(pick(verification, 'email'), asString(pick(owner, 'email'))),
-      expiresAt: asString(pick(verification, 'expiresAt')),
-      ...(devToken ? { devToken } : {}),
-      ...(devLink ? { devLink } : {}),
-    },
+    verification: normalizeVerificationIssue(verification, ownerEmail),
+    approval: normalizeVerificationIssue(pick(r, 'approval'), asString(pick(asRecord(pick(r, 'approval')), 'email'))),
   }
 }
 
@@ -293,6 +308,7 @@ export function normalizeGymVerification(raw: unknown): GymVerification {
   const gym = asRecord(pick(r, 'gym'))
   return {
     ok: asBoolean(coalesce(pick(r, 'ok'), true)),
+    message: asString(pick(r, 'message')),
     gym: {
       id: asString(pick(gym, 'id'), 'sin-id'),
       name: asString(pick(gym, 'name'), 'Gimnasio'),
@@ -300,6 +316,30 @@ export function normalizeGymVerification(raw: unknown): GymVerification {
       publicCode: asString(pick(gym, 'publicCode')),
       enrollmentQrToken: asString(pick(gym, 'enrollmentQrToken')),
     },
+  }
+}
+
+export function normalizePendingGym(raw: unknown): PendingGym {
+  const r = asRecord(raw)
+  return {
+    id: asString(pick(r, 'id'), 'sin-id'),
+    name: asString(pick(r, 'name'), 'Gimnasio'),
+    slug: asString(pick(r, 'slug')),
+    status: normalizeGymStatus(pick(r, 'status')),
+    address: asString(pick(r, 'address')),
+    city: asString(pick(r, 'city')),
+    state: asString(pick(r, 'state')),
+    postalCode: asString(coalesce(pick(r, 'postalCode'), pick(r, 'postal_code'))),
+    contactEmail: asString(coalesce(pick(r, 'contactEmail'), pick(r, 'contact_email'))),
+    phone: asString(pick(r, 'phone')),
+    legalRepresentative: asString(coalesce(pick(r, 'legalRepresentative'), pick(r, 'legal_representative'))),
+    rfc: asString(pick(r, 'rfc')),
+    website: asString(pick(r, 'website')),
+    socialMedia: asString(coalesce(pick(r, 'socialMedia'), pick(r, 'social_media'))),
+    description: asString(pick(r, 'description')),
+    branchCount: asNumber(coalesce(pick(r, 'branchCount'), pick(r, 'branch_count')), 1),
+    openingHours: asString(pick(r, 'openingHours')),
+    createdAt: asString(pick(r, 'createdAt')),
   }
 }
 

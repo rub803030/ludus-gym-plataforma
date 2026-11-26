@@ -51,6 +51,8 @@ const envSchema = z.object({
   RESEND_TEST_RECIPIENT: z.string().email().optional(),
   WEB_APP_URL: z.string().url().default('http://localhost:3000'),
   EMAIL_VERIFICATION_TTL_MINUTES: z.coerce.number().int().positive().default(30),
+  // Destinatarios extra de las autorizaciones de gimnasio (separados por coma).
+  ADMIN_APPROVAL_EMAILS: z.string().default(''),
 }).superRefine((value, ctx) => {
   const encryptionKey = Buffer.from(value.FIELD_ENCRYPTION_KEY.replace(/^base64:/, ''), 'base64')
   if (encryptionKey.length !== 32) {

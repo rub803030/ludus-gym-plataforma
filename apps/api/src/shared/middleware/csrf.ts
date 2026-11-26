@@ -12,6 +12,7 @@ const PUBLIC_MUTATIONS = new Set([
   '/api/auth/verify-email/resend',
   '/api/gyms/register',
   '/api/gyms/verify',
+  '/api/gyms/approve',
   '/api/members/register',
 ])
 let cachedSecret: string | null = null

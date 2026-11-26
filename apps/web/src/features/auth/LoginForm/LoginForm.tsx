@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, type FormEvent } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   api,
@@ -191,7 +192,14 @@ export function LoginForm() {
         </Button>
       </form>
 
-      <p className="mt-8 text-[11px] uppercase tracking-[0.14em] text-muted/70">
+      <Link
+        href="/register-gym"
+        className="mt-6 inline-flex min-h-12 items-center text-[11px] font-bold uppercase tracking-[0.14em] text-volt hover:underline"
+      >
+        ¿Tienes un gimnasio? Regístralo aquí
+      </Link>
+
+      <p className="mt-3 text-[11px] uppercase tracking-[0.14em] text-muted/70">
         Sesión auditada · Dispositivo registrado
       </p>
     </div>

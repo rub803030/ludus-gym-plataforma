@@ -22,6 +22,8 @@ import com.ludus.gym.ui.screens.gym.LinkGymScreen
 import com.ludus.gym.ui.screens.gym.LinkGymViewModel
 import com.ludus.gym.ui.screens.gym.MyGymsScreen
 import com.ludus.gym.ui.screens.gym.MyGymsViewModel
+import com.ludus.gym.ui.screens.gym.RegisterGymScreen
+import com.ludus.gym.ui.screens.gym.RegisterGymViewModel
 import com.ludus.gym.ui.screens.home.HomeScreen
 import com.ludus.gym.ui.screens.home.HomeViewModel
 import com.ludus.gym.ui.screens.nutrition.NutritionScreen
@@ -108,6 +110,7 @@ fun LudusNavHost(deepLinkToken: String? = null) {
                     }
                 },
                 onRegister = { navController.navigate("registro") },
+                onRegisterGym = { navController.navigate("registrar_gimnasio") },
             )
         }
 
@@ -124,6 +127,18 @@ fun LudusNavHost(deepLinkToken: String? = null) {
                         popUpTo("registro") { inclusive = true }
                     }
                 },
+                onBack = { navController.popBackStack() },
+                onRegisterGym = { navController.navigate("registrar_gimnasio") },
+            )
+        }
+
+        composable("registrar_gimnasio") {
+            val factory = viewModelFactory {
+                RegisterGymViewModel(registerGym = container.registerGymUseCase)
+            }
+            val viewModel: RegisterGymViewModel = viewModel(factory = factory)
+            RegisterGymScreen(
+                viewModel = viewModel,
                 onBack = { navController.popBackStack() },
             )
         }

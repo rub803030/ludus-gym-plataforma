@@ -7,6 +7,7 @@ final class AppRouter {
     enum Route: Hashable {
         case login
         case registro
+        case registroGimnasio
         case verificacion(token: String?)
         case vincularGimnasio
         case escanearQRGimnasio

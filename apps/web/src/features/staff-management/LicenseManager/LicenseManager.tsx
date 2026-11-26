@@ -54,9 +54,11 @@ const PERMISSION_LABELS: Record<string, string> = {
   'classes:manage': 'Gestionar clases',
   'access:checkin': 'Registrar accesos',
   'audit:read': 'Consultar bitácora de auditoría',
+  'gyms:approve': 'Autorizar altas de gimnasios',
 }
 
 const MATRIX: Record<Role, readonly string[]> = {
+  ADMIN: [...PERMISSIONS, 'gyms:approve'],
   OWNER: PERMISSIONS,
   MANAGER: [
     'members:read', 'members:write', 'members:medical:read', 'payments:charge',

@@ -168,6 +168,8 @@ struct LudusTextField: View {
     var isSecure = false
     var keyboard: UIKeyboardType = .default
     var autocapitalization: UITextAutocapitalizationType = .none
+    var submitLabel: SubmitLabel = .done
+    var onSubmit: (() -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -183,6 +185,8 @@ struct LudusTextField: View {
                         .textInputAutocapitalization(autocapitalization)
                 }
             }
+            .submitLabel(submitLabel)
+            .onSubmit { onSubmit?() }
             .font(.ludusBody(16))
             .foregroundStyle(theme.palette.ink)
             .padding(.horizontal, 14)

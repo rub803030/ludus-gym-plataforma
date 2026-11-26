@@ -9,6 +9,7 @@ datasource db {
 }
 
 enum StaffRole {
+  ADMIN
   OWNER
   MANAGER
   STAFF
@@ -87,12 +88,26 @@ model Gym {
   capacity              Int
   currency              String     @default("MXN")
   address               String?
+  city                  String?
+  state                 String?
+  postalCode            String?    @map("postal_code")
+  contactEmail          String?    @map("contact_email")
   phone                 String?
+  legalRepresentative   String?    @map("legal_representative")
+  rfc                   String?
+  website               String?
+  socialMedia           String?    @map("social_media")
+  description           String?
+  branchCount           Int        @default(1) @map("branch_count")
   openingHours          String?    @map("opening_hours")
   logoUrl               String?    @map("logo_url")
   verificationTokenHash String?    @unique @map("verification_token_hash")
   verificationExpiresAt DateTime?  @map("verification_expires_at")
   verificationSentAt    DateTime?  @map("verification_sent_at")
+  approvalTokenHash     String?    @unique @map("approval_token_hash")
+  approvalExpiresAt     DateTime?  @map("approval_expires_at")
+  approvalSentAt        DateTime?  @map("approval_sent_at")
+  approvedAt            DateTime?  @map("approved_at")
   createdAt             DateTime   @default(now()) @map("created_at")
   updatedAt             DateTime   @updatedAt @map("updated_at")
   deletedAt             DateTime?  @map("deleted_at")

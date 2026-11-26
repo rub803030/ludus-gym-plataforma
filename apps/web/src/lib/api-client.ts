@@ -1,5 +1,5 @@
 import { apiUrl } from '@/config/env'
-import { asArray, asBoolean, asNumber, asRecord, asString, coalesce, normalizeAccessEvent, normalizeCashSession, normalizeGym, normalizeGymRegistration, normalizeGymVerification, normalizeMember, normalizeNutrition, normalizeOccupancy, normalizePaginated, normalizePayment, normalizePlan, normalizePrincipal, normalizeRoutine, normalizeStaff, normalizeSummary, normalizeAudit, pick } from '@/lib/normalize'
+import { asArray, asBoolean, asNumber, asRecord, asString, coalesce, normalizeAccessEvent, normalizeCashSession, normalizeGym, normalizeGymRegistration, normalizeGymVerification, normalizeMember, normalizeNutrition, normalizeOccupancy, normalizePaginated, normalizePayment, normalizePendingGym, normalizePlan, normalizePrincipal, normalizeRoutine, normalizeStaff, normalizeSummary, normalizeAudit, pick } from '@/lib/normalize'
 import type {
   AccessEvent,
   ApiError,
@@ -13,6 +13,7 @@ import type {
   NutritionPlanView,
   OccupancyView,
   Paginated,
+  PendingGym,
   PaymentMethod,
   PaymentView,
   PlanView,
@@ -431,6 +432,14 @@ export const api = {
       })
       return normalizeGymVerification(raw)
     },
+    async approve(token: string): Promise<GymVerification> {
+      const raw = await apiFetch<unknown>('/api/gyms/approve', {
+        method: 'POST',
+        retry: false,
+        body: JSON.stringify({ token }),
+      })
+      return normalizeGymVerification(raw)
+    },
     async me(): Promise<GymProfile> {
       return normalizeGym(await apiFetch<unknown>('/api/gyms/me'))
     },
@@ -438,6 +447,17 @@ export const api = {
       return normalizeGym(
         await apiFetch<unknown>('/api/gyms/me', { method: 'PATCH', body: JSON.stringify(input) })
       )
+    },
+  },
+
+  admin: {
+    async pendingGyms(): Promise<PendingGym[]> {
+      const raw = await apiFetch<unknown>('/api/admin/gyms/pending', { retry: false })
+      const r = asRecord(raw)
+      return asArray(pick(r, 'gyms')).map((gym) => normalizePendingGym(gym))
+    },
+    async sendApproval(id: string): Promise<unknown> {
+      return apiFetch(`/api/admin/gyms/${encodeURIComponent(id)}/approve`, { method: 'POST', retry: false })
     },
   },
 

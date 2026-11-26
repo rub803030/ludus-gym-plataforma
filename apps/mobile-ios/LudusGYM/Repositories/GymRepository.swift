@@ -6,6 +6,19 @@ struct JoinResult {
     let alreadyMember: Bool
 }
 
+/// Resultado del registro público. Los tokens de desarrollador no se guardan
+/// ni se muestran: sólo se exponen los enlaces cuando el servidor los entrega.
+struct GymRegistrationInfo {
+    let gymName: String
+    let ownerEmail: String?
+    let verificationEmail: String?
+    let verificationExpiresAt: String?
+    let verificationDevLink: String?
+    let approvalEmail: String?
+    let approvalExpiresAt: String?
+    let approvalDevLink: String?
+}
+
 struct GymRepository {
     private let api = APIClient.shared
     private let store = FileStore.shared
@@ -25,6 +38,27 @@ struct GymRepository {
         apply(tokens: response.tokens, gymId: gymId)
         await cache(gym: gym, activeGymId: gymId)
         return JoinResult(gym: gym, activeGymId: gymId, alreadyMember: response.alreadyMember ?? false)
+    }
+
+    /// Endpoint público: sin Bearer y sin reintento de refresco ante un 401.
+    func registerGym(_ request: RegisterGymRequest) async throws -> GymRegistrationInfo {
+        let response: RegisterGymResponseDTO = try await api.request(
+            "api/gyms/register",
+            method: .post,
+            body: request,
+            authenticated: false,
+            retryOn401: false
+        )
+        return GymRegistrationInfo(
+            gymName: response.gym?.name ?? request.gymName,
+            ownerEmail: response.owner?.email ?? request.email,
+            verificationEmail: response.verification?.email ?? request.email,
+            verificationExpiresAt: response.verification?.expiresAt,
+            verificationDevLink: response.verification?.devLink,
+            approvalEmail: response.approval?.email,
+            approvalExpiresAt: response.approval?.expiresAt,
+            approvalDevLink: response.approval?.devLink
+        )
     }
 
     func switchGym(gymId: String) async throws -> Gym {

@@ -10,9 +10,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -24,6 +27,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusManager
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ludus.gym.domain.model.weightLabel
@@ -53,6 +61,7 @@ fun WorkoutScreen(
     val pendingCount by viewModel.pendingCount.collectAsStateWithLifecycle()
     val routine = routines.firstOrNull { it.dayOfWeek == viewModel.selectedDay }
     val message = viewModel.message
+    val focusManager: FocusManager = LocalFocusManager.current
 
     if (message != null) {
         LaunchedEffect(message) {
@@ -64,6 +73,7 @@ fun WorkoutScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .imePadding()
             .verticalScroll(rememberScrollState())
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -151,6 +161,11 @@ fun WorkoutScreen(
                             onValueChange = viewModel::onSetsChange,
                             label = { Text("Series") },
                             singleLine = true,
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Number,
+                                imeAction = ImeAction.Next,
+                            ),
+                            keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Right) }),
                             modifier = Modifier.weight(1f),
                         )
                         OutlinedTextField(
@@ -158,6 +173,11 @@ fun WorkoutScreen(
                             onValueChange = viewModel::onRepsChange,
                             label = { Text("Reps") },
                             singleLine = true,
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Number,
+                                imeAction = ImeAction.Next,
+                            ),
+                            keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Right) }),
                             modifier = Modifier.weight(1f),
                         )
                         OutlinedTextField(
@@ -165,6 +185,11 @@ fun WorkoutScreen(
                             onValueChange = viewModel::onWeightChange,
                             label = { Text("Peso") },
                             singleLine = true,
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Decimal,
+                                imeAction = ImeAction.Done,
+                            ),
+                            keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
                             modifier = Modifier.weight(1f),
                         )
                     }

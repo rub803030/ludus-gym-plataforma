@@ -1,11 +1,12 @@
 export const PLATFORM_ACCESS = {
-  web: ['OWNER', 'MANAGER', 'STAFF'],
+  web: ['ADMIN', 'OWNER', 'MANAGER', 'STAFF'],
   mobile: ['MEMBER'],
 } as const
 
-export type Role = 'OWNER' | 'MANAGER' | 'STAFF' | 'MEMBER'
+export type Role = 'ADMIN' | 'OWNER' | 'MANAGER' | 'STAFF' | 'MEMBER'
 
 export const ROLE_RANK: Record<Role, number> = {
+  ADMIN: 4,
   OWNER: 3,
   MANAGER: 2,
   STAFF: 1,

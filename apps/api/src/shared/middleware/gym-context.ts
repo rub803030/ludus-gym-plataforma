@@ -19,7 +19,8 @@ const GYM_FREE_PATHS = new Set([
 export function needsGymContext(req: FastifyRequest): boolean {
   const path = req.url.split('?')[0] ?? ''
   if (path.startsWith('/api/auth/')) return false
-  if (path === '/api/gyms/register' || path === '/api/gyms/verify') return false
+  if (path.startsWith('/api/admin/')) return false
+  if (['/api/gyms/register', '/api/gyms/verify', '/api/gyms/approve'].includes(path)) return false
   return !GYM_FREE_PATHS.has(path)
 }
 

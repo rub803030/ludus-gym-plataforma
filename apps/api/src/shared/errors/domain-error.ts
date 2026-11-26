@@ -18,6 +18,7 @@ export type ErrorCode =
   | 'GYM_NOT_ACTIVE'
   | 'CROSS_GYM_PASS'
   | 'INVALID_ENROLLMENT_CODE'
+  | 'ADMIN_NOT_CONFIGURED'
 
 export class DomainError extends Error {
   constructor(

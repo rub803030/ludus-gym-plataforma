@@ -3,10 +3,11 @@
 ## Para el equipo (consola web)
 
 ### Ingreso
-Abrir la web e iniciar sesión con una cuenta de **OWNER**, **MANAGER** o **STAFF**.
+Abrir la web e iniciar sesión con una cuenta de **ADMIN**, **OWNER**, **MANAGER** o **STAFF**.
 Los socios no pueden ingresar aquí; la app rechaza explícitamente sus credenciales.
 Al crear una cuenta se envía un correo de confirmación: hay que abrir el enlace antes
 de poder entrar. Si no llegó, usa **Reenviar correo** en la pantalla de acceso.
+Las cuentas **ADMIN** ven además la sección **Plataforma → Autorizar gimnasios**.
 
 ### Operación diaria
 
@@ -31,6 +32,14 @@ de poder entrar. Si no llegó, usa **Reenviar correo** en la pantalla de acceso.
 - Escannear el QR dinámico del socio (rota cada 30 s), o buscarlo manualmente y marcar **Check-in**.
 - Si la membresía está vencida, el sistema indica desde cuándo y ofrece renovar en el mismo flujo.
 - Si el gimnasio está lleno, el acceso se deniega con el motivo.
+
+### Alta de un gimnasio
+
+Desde **Registra tu gimnasio** (web) o desde el enlace **Regístralo aquí** de las apps Android e iOS se capturan los datos del gimnasio, su ubicación completa (dirección, ciudad, estado y código postal), el contacto (teléfono y correo), el representante legal con RFC y, de forma opcional, horario, sitio web/redes, descripción y número de sucursales.
+
+1. El dueño recibe un correo para confirmar su dirección; el enlace caduca en 30 minutos.
+2. Los correos **ADMIN** reciben un enlace de autorización de un solo uso. También se puede enviar desde **Plataforma → Autorizar gimnasios**.
+3. El gimnasio se activa solo cuando se abre ese enlace. Hasta entonces no tiene código público ni QR de afiliación y el dueño no puede entrar a la consola.
 
 ## Para socios (apps Android e iOS)
 

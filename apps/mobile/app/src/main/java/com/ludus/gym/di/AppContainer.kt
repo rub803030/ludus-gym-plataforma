@@ -16,6 +16,7 @@ import com.ludus.gym.data.remote.TokenAuthenticator
 import com.ludus.gym.data.repository.AuthRepository
 import com.ludus.gym.data.repository.BookingRepository
 import com.ludus.gym.data.repository.DefaultGymRepository
+import com.ludus.gym.data.repository.GymRegistrationRepository
 import com.ludus.gym.data.repository.GymRepository
 import com.ludus.gym.data.repository.MemberRepository
 import com.ludus.gym.data.repository.NutritionRepository
@@ -49,6 +50,7 @@ import com.ludus.gym.domain.usecase.RefreshMyGymsUseCase
 import com.ludus.gym.domain.usecase.RefreshNutritionUseCase
 import com.ludus.gym.domain.usecase.RefreshReceiptsUseCase
 import com.ludus.gym.domain.usecase.RefreshRoutinesUseCase
+import com.ludus.gym.domain.usecase.RegisterGymUseCase
 import com.ludus.gym.domain.usecase.RegisterMemberUseCase
 import com.ludus.gym.domain.usecase.ResendVerificationUseCase
 import com.ludus.gym.domain.usecase.SwitchGymUseCase
@@ -119,6 +121,7 @@ class AppContainer(context: Context) {
     val authRepository = AuthRepository(api, tokens, memberRepository, network, dao)
     val qrRepository = QrRepository(api, dao, tokens, network)
     private val registrationRepository = RegistrationRepository(api)
+    private val gymRegistrationRepository = GymRegistrationRepository(api)
     val gymRepository: GymRepository = DefaultGymRepository(api, tokens, dao)
     val workoutRepository = WorkoutRepository(api, dao, moshi, appContext)
     private val nutritionRepository = NutritionRepository(api)
@@ -129,6 +132,7 @@ class AppContainer(context: Context) {
     val verifyEmailUseCase = VerifyEmailUseCase(authRepository)
     val resendVerificationUseCase = ResendVerificationUseCase(authRepository)
     val registerMemberUseCase = RegisterMemberUseCase(registrationRepository)
+    val registerGymUseCase = RegisterGymUseCase(gymRegistrationRepository)
     val logoutUseCase = LogoutUseCase(authRepository)
     val observeActiveGymUseCase = ObserveActiveGymUseCase(gymRepository)
     val observeGymsUseCase = ObserveGymsUseCase(gymRepository)

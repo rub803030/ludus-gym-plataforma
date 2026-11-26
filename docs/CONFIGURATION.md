@@ -52,8 +52,9 @@ entre dominios distintos.
 | `EMAIL_FROM` | Fly.io | Solo se exige que coincida con `SMTP_USER` cuando se usa una cuenta única. Con Resend, remitente verificado (`onboarding@resend.dev` en pruebas) |
 | `RESEND_API_KEY` | Fly.io (secreto) | Alternativa a SMTP: clave privada de Resend. En producción se requiere SMTP o Resend |
 | `RESEND_TEST_RECIPIENT` | Solo mientras `EMAIL_FROM` use `@resend.dev` | Bandeja del dueño de Resend para probar con cuentas demo. Se ignora con SMTP o remitente verificado |
-| `WEB_APP_URL` | Fly.io | URL pública de Vercel usada para construir el enlace de verificación |
-| `EMAIL_VERIFICATION_TTL_MINUTES` | Fly.io | Vigencia del enlace de un solo uso (30 min por defecto) |
+| `WEB_APP_URL` | Fly.io | URL pública de Vercel usada para construir los enlaces de verificación y autorización |
+| `EMAIL_VERIFICATION_TTL_MINUTES` | Fly.io | Vigencia de los enlaces de un solo uso (30 min por defecto) |
+| `ADMIN_APPROVAL_EMAILS` | Fly.io | Correos extra que reciben el enlace de autorización de gimnasios (separados por coma). También se envía a las cuentas con rol `ADMIN` |
 
 Si más adelante compras un dominio propio, solo cambia `CORS_ORIGIN` en Fly.io
 y añade el dominio en Vercel. El código no se modifica.

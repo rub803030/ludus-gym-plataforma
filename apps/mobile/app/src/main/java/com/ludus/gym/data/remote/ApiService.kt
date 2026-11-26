@@ -17,6 +17,8 @@ import com.ludus.gym.data.remote.dto.QrTokenDto
 import com.ludus.gym.data.remote.dto.QrTokenRequestDto
 import com.ludus.gym.data.remote.dto.RefreshRequestDto
 import com.ludus.gym.data.remote.dto.RefreshResponseDto
+import com.ludus.gym.data.remote.dto.RegisterGymRequestDto
+import com.ludus.gym.data.remote.dto.RegisterGymResponseDto
 import com.ludus.gym.data.remote.dto.RegisterMemberRequestDto
 import com.ludus.gym.data.remote.dto.RegisterMemberResponseDto
 import com.ludus.gym.data.remote.dto.ResendVerificationRequestDto
@@ -48,6 +50,9 @@ interface ApiService {
 
     @POST("api/members/register")
     suspend fun registerMember(@Body request: RegisterMemberRequestDto): RegisterMemberResponseDto
+
+    @POST("api/gyms/register")
+    suspend fun registerGym(@Body request: RegisterGymRequestDto): RegisterGymResponseDto
 
     @POST("api/members/join-gym")
     suspend fun joinGym(@Body request: JoinGymRequestDto): JoinGymResponseDto

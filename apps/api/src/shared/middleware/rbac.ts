@@ -27,6 +27,15 @@ export function requireRole(...roles: readonly Role[]) {
   }
 }
 
+/** Administrador global: puede autorizar altas sin depender de un tenant activo. */
+export function requireAdmin(req: FastifyRequest, _reply: FastifyReply): Promise<void> {
+  const principal = getPrincipal(req)
+  if (principal.platform !== 'web' || principal.role !== 'ADMIN') {
+    throw new DomainError('FORBIDDEN', 'Esta operación es exclusiva de administradores globales', 403)
+  }
+  return Promise.resolve()
+}
+
 export function requirePlatform(platform: 'web' | 'mobile') {
   return async (req: FastifyRequest, _reply: FastifyReply): Promise<void> => {
     const principal = getPrincipal(req)

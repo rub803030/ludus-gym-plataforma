@@ -105,6 +105,8 @@ Formato de error global (sin cambios): `{ "error": { "code": "...", "message": "
 
 ### `POST /api/gyms/register` — público
 
+Los campos obligatorios son nombre, dirección, ciudad, estado, código postal, teléfono, correo de contacto, representante legal y RFC. Opcionales: sitio web, redes, descripción, sucursales y horario.
+
 ```json
 {
   "gymName": "GYM Norte",
@@ -112,12 +114,22 @@ Formato de error global (sin cambios): `{ "error": { "code": "...", "message": "
   "ownerName": "Ana López",
   "email": "ana@example.com",
   "password": "ClaveSegura2026!",
+  "contactEmail": "contacto@gymnorte.com",
+  "phone": "5512345678",
+  "address": "Av. Insurgentes 123, Roma Norte",
+  "city": "Ciudad de México",
+  "state": "CDMX",
+  "postalCode": "06700",
+  "legalRepresentative": "Ana López",
+  "rfc": "LOPE900101ABC",
+  "website": "https://gymnorte.com",
+  "socialMedia": "@gymnorte",
+  "description": "Gimnasio de fuerza y acondicionamiento",
+  "branchCount": 2,
+  "openingHours": "Lun–Vie 06:00–22:00",
   "timezone": "America/Mexico_City",
   "capacity": 40,
-  "currency": "MXN",
-  "address": "Calle 1",
-  "phone": "5512345678",
-  "openingHours": "Lun–Vie 06:00–22:00"
+  "currency": "MXN"
 }
 ```
 
@@ -130,11 +142,17 @@ Formato de error global (sin cambios): `{ "error": { "code": "...", "message": "
     "expiresAt": "2026-11-25T18:00:00.000Z",
     "devToken": "solo fuera de producción",
     "devLink": "solo fuera de producción"
+  },
+  "approval": {
+    "email": "correo-de-los-administradores",
+    "expiresAt": "2026-11-25T18:00:00.000Z",
+    "devToken": "solo fuera de producción",
+    "devLink": "solo fuera de producción"
   }
 }
 ```
 
-Errores: `VALIDATION_ERROR` 400, `CONFLICT` 409 (slug ocupado).
+El alta queda `PENDING_VERIFICATION`: el dueño confirma su correo y un administrador global autoriza el gimnasio antes de que exista código público o QR. Errores: `VALIDATION_ERROR` 400, `CONFLICT` 409 (correo o slug ocupado), `ADMIN_NOT_CONFIGURED` 503.
 
 ### `POST /api/gyms/verify` — público
 
@@ -145,6 +163,31 @@ Errores: `VALIDATION_ERROR` 400, `CONFLICT` 409 (slug ocupado).
 ```json
 {
   "ok": true,
+  "message": "Correo del dueño confirmado. El gimnasio queda a la espera de la autorización de un administrador.",
+  "gym": {
+    "id": "uuid",
+    "name": "GYM Norte",
+    "status": "PENDING_VERIFICATION",
+    "publicCode": "",
+    "enrollmentQrToken": ""
+  }
+}
+```
+
+Errores: `VERIFICATION_TOKEN_INVALID` 400, `VERIFICATION_TOKEN_EXPIRED` 410.
+
+### `POST /api/gyms/approve` — público por enlace de correo
+
+```json
+{ "token": "token-de-32-bytes-en-base64url" }
+```
+
+El token llega por correo a las cuentas `ADMIN` (y a `ADMIN_APPROVAL_EMAILS`) mediante `/api/admin/gyms/:id/approve`. Solo se puede usar una vez y expira a los 30 minutos.
+
+```json
+{
+  "ok": true,
+  "message": "Gimnasio autorizado y activo. Ya puedes iniciar sesión en la consola.",
   "gym": {
     "id": "uuid",
     "name": "GYM Norte",
@@ -155,7 +198,7 @@ Errores: `VALIDATION_ERROR` 400, `CONFLICT` 409 (slug ocupado).
 }
 ```
 
-Errores: `VERIFICATION_TOKEN_INVALID` 400, `VERIFICATION_TOKEN_EXPIRED` 410.
+Errores: `VERIFICATION_TOKEN_INVALID` 400, `VERIFICATION_TOKEN_EXPIRED` 410. Las consultas `GET /api/admin/gyms/pending` y `POST /api/admin/gyms/:id/approve` requieren sesión web con rol `ADMIN`.
 
 ### `GET /api/gyms/me` y `PATCH /api/gyms/me` — staff autenticado
 

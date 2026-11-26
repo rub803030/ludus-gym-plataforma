@@ -61,6 +61,7 @@ export function relativeDayLabel(days: number): string {
 }
 
 const ROLE_LABELS: Record<Role, string> = {
+  ADMIN: 'Administrador global',
   OWNER: 'Propietario',
   MANAGER: 'Encargado',
   STAFF: 'Equipo',

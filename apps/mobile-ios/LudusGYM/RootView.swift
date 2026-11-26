@@ -37,6 +37,8 @@ struct RootView: View {
             LoginView()
         case .registro:
             RegisterView()
+        case .registroGimnasio:
+            RegisterGymView()
         case .verificacion(let token):
             VerifyEmailView(token: token, email: router.verificationEmail)
         case .vincularGimnasio:

@@ -161,6 +161,96 @@ struct GymDTO: Decodable {
     let joinedAt: String?
 }
 
+/// Registro público de un gimnasio. No requiere sesión ni rol de socio.
+struct RegisterGymRequest: Encodable {
+    let gymName: String
+    let slug: String?
+    let ownerName: String
+    let email: String
+    let password: String
+    let contactEmail: String
+    let phone: String
+    let address: String
+    let city: String
+    let state: String
+    let postalCode: String
+    let legalRepresentative: String
+    let rfc: String
+    let website: String?
+    let socialMedia: String?
+    let description: String?
+    let branchCount: Int?
+    let timezone: String?
+    let capacity: Int?
+    let currency: String
+    let openingHours: String?
+
+    init(
+        gymName: String,
+        ownerName: String,
+        email: String,
+        password: String,
+        contactEmail: String,
+        phone: String,
+        address: String,
+        city: String,
+        state: String,
+        postalCode: String,
+        legalRepresentative: String,
+        rfc: String,
+        slug: String? = nil,
+        website: String? = nil,
+        socialMedia: String? = nil,
+        description: String? = nil,
+        branchCount: Int? = nil,
+        timezone: String? = nil,
+        capacity: Int? = nil,
+        openingHours: String? = nil
+    ) {
+        self.gymName = gymName
+        self.slug = slug
+        self.ownerName = ownerName
+        self.email = email
+        self.password = password
+        self.contactEmail = contactEmail
+        self.phone = phone
+        self.address = address
+        self.city = city
+        self.state = state
+        self.postalCode = postalCode
+        self.legalRepresentative = legalRepresentative
+        self.rfc = rfc
+        self.website = website
+        self.socialMedia = socialMedia
+        self.description = description
+        self.branchCount = branchCount
+        self.timezone = timezone
+        self.capacity = capacity
+        self.currency = "MXN"
+        self.openingHours = openingHours
+    }
+}
+
+struct RegisteredGymDTO: Decodable {
+    let id: String?
+    let name: String?
+    let slug: String?
+    let status: String?
+    let publicCode: String?
+}
+
+struct GymOwnerDTO: Decodable {
+    let email: String?
+    let fullName: String?
+}
+
+struct RegisterGymResponseDTO: Decodable {
+    let gym: RegisteredGymDTO?
+    let owner: GymOwnerDTO?
+    let verification: VerificationIssueDTO?
+    let approval: VerificationIssueDTO?
+}
+
 struct JoinGymRequest: Encodable {
     let code: String
 }
