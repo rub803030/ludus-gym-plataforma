@@ -2,6 +2,7 @@ package com.ludus.gym.ui.navigation
 
 import android.net.Uri
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -62,6 +63,20 @@ fun LudusNavHost(deepLinkToken: String? = null) {
         navController.navigate(homeRoute()) {
             popUpTo("vincular_gimnasio") { inclusive = true }
             launchSingleTop = true
+        }
+    }
+
+    @Composable
+    fun RequireGym(content: @Composable () -> Unit) {
+        if (container.tokens.activeGymId().isNullOrBlank()) {
+            LaunchedEffect(Unit) {
+                navController.navigate("vincular_gimnasio") {
+                    popUpTo(0) { inclusive = true }
+                    launchSingleTop = true
+                }
+            }
+        } else {
+            content()
         }
     }
 
@@ -208,22 +223,24 @@ fun LudusNavHost(deepLinkToken: String? = null) {
         }
 
         composable("qr") {
-            val factory = viewModelFactory {
-                QrViewModel(
-                    observeQr = container.observeQrUseCase,
-                    observeActiveGym = container.observeActiveGymUseCase,
-                    observeGyms = container.observeGymsUseCase,
-                    getQr = container.getQrUseCase,
-                    recordAccess = container.recordAccessUseCase,
-                    readableError = container.qrRepository::readableError,
+            RequireGym {
+                val factory = viewModelFactory {
+                    QrViewModel(
+                        observeQr = container.observeQrUseCase,
+                        observeActiveGym = container.observeActiveGymUseCase,
+                        observeGyms = container.observeGymsUseCase,
+                        getQr = container.getQrUseCase,
+                        recordAccess = container.recordAccessUseCase,
+                        readableError = container.qrRepository::readableError,
+                    )
+                }
+                val viewModel: QrViewModel = viewModel(factory = factory)
+                QrScreen(
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() },
+                    onMyGyms = { navController.navigate("mis_gimnasios") },
                 )
             }
-            val viewModel: QrViewModel = viewModel(factory = factory)
-            QrScreen(
-                viewModel = viewModel,
-                onBack = { navController.popBackStack() },
-                onMyGyms = { navController.navigate("mis_gimnasios") },
-            )
         }
 
         composable("workout") {
@@ -251,18 +268,20 @@ fun LudusNavHost(deepLinkToken: String? = null) {
         }
 
         composable("bookings") {
-            val factory = viewModelFactory {
-                BookingViewModel(
-                    observeClasses = container.observeClassesUseCase,
-                    observeReceipts = container.observeReceiptsUseCase,
-                    refreshClasses = container.refreshClassesUseCase,
-                    refreshReceipts = container.refreshReceiptsUseCase,
-                    bookClass = container.bookClassUseCase,
-                    cancelBooking = container.cancelBookingUseCase,
-                )
+            RequireGym {
+                val factory = viewModelFactory {
+                    BookingViewModel(
+                        observeClasses = container.observeClassesUseCase,
+                        observeReceipts = container.observeReceiptsUseCase,
+                        refreshClasses = container.refreshClassesUseCase,
+                        refreshReceipts = container.refreshReceiptsUseCase,
+                        bookClass = container.bookClassUseCase,
+                        cancelBooking = container.cancelBookingUseCase,
+                    )
+                }
+                val viewModel: BookingViewModel = viewModel(factory = factory)
+                BookingsScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
             }
-            val viewModel: BookingViewModel = viewModel(factory = factory)
-            BookingsScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
         }
     }
 }

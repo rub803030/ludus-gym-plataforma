@@ -141,5 +141,6 @@ struct WorkoutView: View {
             }
             .padding(24)
         }
+        .keyboardAware()
     }
 }

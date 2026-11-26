@@ -59,6 +59,15 @@ final class AppRouter {
     }
 
     func goTo(_ route: Route) {
+        switch route {
+        case .qr, .bookings:
+            guard let gymId = SecureStore.activeGymId, !gymId.isEmpty else {
+                path.append(.vincularGimnasio)
+                return
+            }
+        default:
+            break
+        }
         path.append(route)
     }
 

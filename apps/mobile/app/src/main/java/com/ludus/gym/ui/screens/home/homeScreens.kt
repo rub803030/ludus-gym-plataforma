@@ -127,7 +127,9 @@ fun HomeScreen(
         }
 
         SectionHeader(title = "Acciones rápidas")
-        LudusButton(text = "Mi pase QR", onClick = onQr, leadingIcon = Icons.Filled.QrCode)
+        if (!activeGymId.isNullOrBlank()) {
+            LudusButton(text = "Mi pase QR", onClick = onQr, leadingIcon = Icons.Filled.QrCode)
+        }
         LudusButton(
             text = "Mi rutina",
             onClick = onWorkout,
@@ -140,12 +142,14 @@ fun HomeScreen(
             variant = LudusButtonVariant.SECONDARY,
             leadingIcon = Icons.Filled.LocalDining,
         )
-        LudusButton(
-            text = "Reservas",
-            onClick = onBookings,
-            variant = LudusButtonVariant.SECONDARY,
-            leadingIcon = Icons.Filled.CalendarMonth,
-        )
+        if (!activeGymId.isNullOrBlank()) {
+            LudusButton(
+                text = "Reservas",
+                onClick = onBookings,
+                variant = LudusButtonVariant.SECONDARY,
+                leadingIcon = Icons.Filled.CalendarMonth,
+            )
+        }
         LudusButton(
             text = if (activeGymId.isNullOrBlank()) "Vincular gimnasio" else "Mis gimnasios",
             onClick = if (activeGymId.isNullOrBlank()) onLinkGym else onMyGyms,

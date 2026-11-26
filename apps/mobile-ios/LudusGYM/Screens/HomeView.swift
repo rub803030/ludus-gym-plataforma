@@ -79,8 +79,10 @@ struct HomeView: View {
                 SectionHeader(title: "Acciones rápidas")
 
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                    QuickAction(title: "Mi pase QR", systemImage: "qrcode") {
-                        router.goTo(.qr)
+                    if viewModel.activeGymId != nil {
+                        QuickAction(title: "Mi pase QR", systemImage: "qrcode") {
+                            router.goTo(.qr)
+                        }
                     }
                     QuickAction(title: "Mi rutina", systemImage: "dumbbell.fill") {
                         router.goTo(.workout)
@@ -88,8 +90,10 @@ struct HomeView: View {
                     QuickAction(title: "Nutrición", systemImage: "leaf.fill") {
                         router.goTo(.nutrition)
                     }
-                    QuickAction(title: "Reservas", systemImage: "calendar.badge.clock") {
-                        router.goTo(.bookings)
+                    if viewModel.activeGymId != nil {
+                        QuickAction(title: "Reservas", systemImage: "calendar.badge.clock") {
+                            router.goTo(.bookings)
+                        }
                     }
                 }
 

@@ -78,6 +78,7 @@ struct LoginView: View {
             }
             .padding(.horizontal, 16)
         }
+        .keyboardAware()
     }
 }
 
@@ -143,6 +144,7 @@ struct RegisterView: View {
             .padding(24)
         }
         .background(theme.palette.canvas.ignoresSafeArea())
+        .keyboardAware()
     }
 }
 
@@ -212,5 +214,6 @@ struct VerifyEmailView: View {
         }
         .background(theme.palette.canvas.ignoresSafeArea())
         .task { viewModel.prepare() }
+        .keyboardAware()
     }
 }

@@ -55,6 +55,7 @@ struct LinkGymView: View {
             .padding(24)
         }
         .background(theme.palette.canvas.ignoresSafeArea())
+        .keyboardAware()
     }
 }
 
