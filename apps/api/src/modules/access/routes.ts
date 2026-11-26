@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
+import { Prisma } from '@prisma/client'
 import { prisma } from '../../shared/database/prisma.js'
 import { DomainError } from '../../shared/errors/domain-error.js'
 import { getPrincipal } from '../../shared/middleware/request-context.js'
@@ -8,6 +9,8 @@ import { requireAuth } from '../../shared/http.js'
 import { issueQr, issueOfflineCredential, verifyQr, type VerifiedQr } from '../../shared/qr.js'
 import { getCache } from '../../shared/redis.js'
 import { writeAudit } from '../../shared/audit.js'
+import { memberAccessDenial } from '../../shared/member-access.js'
+import { assertGymCapacity } from './access-capacity.js'
 
 const verifySchema = z.object({ token: z.string().min(20) })
 const manualSchema = z.object({ memberId: z.string().uuid(), notes: z.string().max(300).optional() })
@@ -22,18 +25,35 @@ export async function registerAccessRoutes(app: FastifyInstance): Promise<void> 
     const body = z.object({ gymId: z.string().uuid().optional() }).parse(req.body ?? {})
     const gymId = body.gymId ?? principal.activeGymId ?? principal.gymId
     if (!gymId) throw new DomainError('NO_GYM', 'Únete a algún gimnasio para tener acceso', 403)
-    const link = await prisma.gymMembership.findFirst({
-      where: {
-        memberId: principal.id,
-        gymId,
-        isActive: true,
-        status: 'ACTIVE',
-        deletedAt: null,
-        gym: { status: 'ACTIVE', deletedAt: null },
-      },
-      select: { id: true },
+    const gym = await prisma.gym.findFirst({
+      where: { id: gymId, deletedAt: null },
+      select: { status: true },
     })
-    if (!link) throw new DomainError('NO_GYM', 'Únete a algún gimnasio para tener acceso', 403)
+    if (!gym) throw new DomainError('NOT_FOUND', 'Gimnasio no encontrado', 404)
+    if (gym.status !== 'ACTIVE') {
+      throw new DomainError('GYM_NOT_ACTIVE', 'Este gimnasio todavía no está activo', 403)
+    }
+    const member = await prisma.member.findFirst({
+      where: {
+        id: principal.id,
+        deletedAt: null,
+      },
+      include: {
+        gymMemberships: { where: { gymId }, take: 1 },
+        memberships: {
+          where: { plan: { gymId } },
+          orderBy: { endDate: 'desc' },
+          include: { plan: { select: { gymId: true } } },
+        },
+      },
+    })
+    if (!member) throw new DomainError('NOT_FOUND', 'Socio no encontrado', 404)
+    const denial = memberAccessDenial({
+      memberStatus: member.status,
+      affiliation: member.gymMemberships[0] ?? null,
+      memberships: member.memberships,
+    }, gymId)
+    if (denial) throw new DomainError(denial.code, denial.message, 403)
     const qr = issueQr(principal.id, gymId)
     return { ...qr, offlineCredential: issueOfflineCredential(principal.id, gymId) }
   })
@@ -74,49 +94,49 @@ export async function registerAccessRoutes(app: FastifyInstance): Promise<void> 
     const member = await prisma.member.findFirst({
       where: { id: decoded.memberId, deletedAt: null },
       include: {
-        gymMemberships: {
-          where: { gymId: decoded.gymId, isActive: true, status: 'ACTIVE', deletedAt: null },
-          take: 1,
+        gymMemberships: { where: { gymId: decoded.gymId }, take: 1 },
+        memberships: {
+          where: { plan: { gymId: decoded.gymId } },
+          orderBy: { endDate: 'desc' },
+          include: { plan: { select: { gymId: true } } },
         },
-        memberships: { where: { status: 'ACTIVE', plan: { gymId: decoded.gymId } }, take: 1 },
       },
     })
-    if (!member || (!member.gymMemberships[0] && member.gymId !== decoded.gymId)) {
-      throw new DomainError('NOT_FOUND', 'Socio no encontrado', 404)
-    }
-
-    const membership = member.memberships[0]
-    if (!membership?.endDate || membership.endDate.getTime() < Date.now()) {
+    if (!member) throw new DomainError('NOT_FOUND', 'Socio no encontrado', 404)
+    const denial = memberAccessDenial({
+      memberStatus: member.status,
+      affiliation: member.gymMemberships[0] ?? null,
+      memberships: member.memberships,
+    }, decoded.gymId)
+    if (denial) {
+      if (denial.code === 'MEMBERSHIP_EXPIRED') {
       await prisma.accessEvent.create({
         data: { gymId: principal.gymId, memberId: member.id, qrBucket: BigInt(decoded.bucket), result: 'DENIED_EXPIRED', deviceId: body.deviceId },
       })
-      throw new DomainError('MEMBERSHIP_EXPIRED', 'La membresía venció. Renueva antes de dar acceso', 403)
-    }
-
-    const gym = await prisma.gym.findUnique({ where: { id: principal.gymId } })
-    const startOfDay = new Date()
-    startOfDay.setHours(0, 0, 0, 0)
-    const occupancy = await prisma.accessEvent.count({
-      where: { gymId: principal.gymId, createdAt: { gte: startOfDay }, result: { in: ['GRANTED', 'OFFLINE_GRANTED'] } },
-    })
-    if (occupancy >= (gym?.capacity ?? Infinity)) {
-      throw new DomainError('CONFLICT', 'Aforo completo. Intenta en unos minutos', 409)
+      }
+      throw new DomainError(denial.code, denial.message, 403)
     }
 
     try {
-      await prisma.accessEvent.create({
-        data: {
-          gymId: principal.gymId,
-          memberId: member.id,
-          qrBucket: BigInt(decoded.bucket),
-          result: decoded.offline ? 'OFFLINE_GRANTED' : 'GRANTED',
-          offlineSynced: decoded.offline,
-          deviceId: body.deviceId,
-          checkedBy: principal.id,
-        },
+      await prisma.$transaction(async (tx) => {
+        await assertGymCapacity(tx, principal.gymId)
+        await tx.accessEvent.create({
+          data: {
+            gymId: principal.gymId,
+            memberId: member.id,
+            qrBucket: BigInt(decoded.bucket),
+            result: decoded.offline ? 'OFFLINE_GRANTED' : 'GRANTED',
+            offlineSynced: decoded.offline,
+            deviceId: body.deviceId,
+            checkedBy: principal.id,
+          },
+        })
       })
-    } catch {
-      throw new DomainError('IDEMPOTENCY_REPLAY', 'Este QR ya fue usado', 409)
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new DomainError('IDEMPOTENCY_REPLAY', 'Este QR ya fue usado', 409)
+      }
+      throw error
     }
     await getCache().publish('access:granted', JSON.stringify({ memberId: member.id, name: `${member.firstName} ${member.lastName}` }))
     await writeAudit({
@@ -138,31 +158,48 @@ export async function registerAccessRoutes(app: FastifyInstance): Promise<void> 
     const body = z.object({ memberId: z.string().uuid(), notes: z.string().max(300).optional() }).parse(manualSchema.parse(req.body))
     const principal = getPrincipal(req)
     const member = await prisma.member.findFirst({
-      where: { id: body.memberId, gymId: principal.gymId },
-      include: { memberships: { where: { status: 'ACTIVE' }, take: 1 } },
+      where: { id: body.memberId, deletedAt: null },
+      include: {
+        gymMemberships: { where: { gymId: principal.gymId }, take: 1 },
+        memberships: {
+          where: { plan: { gymId: principal.gymId } },
+          orderBy: { endDate: 'desc' },
+          include: { plan: { select: { gymId: true } } },
+        },
+      },
     })
     if (!member) throw new DomainError('NOT_FOUND', 'Socio no encontrado', 404)
-    const membership = member.memberships[0]
-    if (!membership?.endDate || membership.endDate.getTime() < Date.now()) {
-      throw new DomainError('MEMBERSHIP_EXPIRED', 'La membresía venció; puedes renovarla aquí mismo antes de dar acceso', 403)
+    const denial = memberAccessDenial({
+      memberStatus: member.status,
+      affiliation: member.gymMemberships[0] ?? null,
+      memberships: member.memberships,
+    }, principal.gymId)
+    if (denial) {
+      throw new DomainError(denial.code, denial.message, 403)
     }
     // Los buckets QR son siempre positivos (Date.now()/30_000). Usamos un
     // espacio negativo con granularidad de milisegundos para que un check-in
     // manual nunca colisione con el constraint único (member, bucket, result).
     const bucket = -BigInt(Date.now())
     try {
-      await prisma.accessEvent.create({
-        data: {
-          gymId: principal.gymId,
-          memberId: member.id,
-          qrBucket: bucket,
-          result: 'GRANTED',
-          deviceId: body.notes ?? 'manual',
-          checkedBy: principal.id,
-        },
+      await prisma.$transaction(async (tx) => {
+        await assertGymCapacity(tx, principal.gymId)
+        await tx.accessEvent.create({
+          data: {
+            gymId: principal.gymId,
+            memberId: member.id,
+            qrBucket: bucket,
+            result: 'GRANTED',
+            deviceId: body.notes ?? 'manual',
+            checkedBy: principal.id,
+          },
+        })
       })
-    } catch {
-      throw new DomainError('IDEMPOTENCY_REPLAY', 'Este check-in ya fue registrado', 409)
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new DomainError('IDEMPOTENCY_REPLAY', 'Este check-in ya fue registrado', 409)
+      }
+      throw error
     }
     reply.code(201)
     return { granted: true, member: { id: member.id, name: `${member.firstName} ${member.lastName}` } }
