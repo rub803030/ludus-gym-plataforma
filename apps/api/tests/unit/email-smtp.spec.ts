@@ -105,6 +105,16 @@ describe('entrega por SMTP propio', () => {
     expect(message.from).toBe('Ludus GYM <cuenta2@gmail.com>')
   })
 
+  it('usa smtp.gmail.com cuando no hay host global configurado', async () => {
+    configure({ SMTP_HOST: '' })
+    vi.mocked(getSmtpAccounts).mockReturnValue(rotating(['cuenta@gmail.com']))
+
+    await sendVerificationEmail(input)
+
+    const options = createTransport.mock.calls[0]?.[0] as { host: string }
+    expect(options.host).toBe('smtp.gmail.com')
+  })
+
   it('falla con claridad si todas las cuentas agotaron el cupo', async () => {
     configure({ EMAIL_FROM: 'Ludus GYM <onboarding@resend.dev>' })
     vi.mocked(getSmtpAccounts).mockReturnValue(rotating(['cuenta1@gmail.com', 'cuenta2@gmail.com']))

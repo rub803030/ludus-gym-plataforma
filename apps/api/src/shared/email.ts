@@ -150,7 +150,7 @@ export async function sendVerificationEmail(input: VerificationEmailInput): Prom
 
     try {
       const transporter = nodemailer.createTransport({
-        host: account.host ?? env.SMTP_HOST.trim() ?? 'smtp.gmail.com',
+        host: account.host ?? (env.SMTP_HOST.trim() || 'smtp.gmail.com'),
         port: account.port ?? env.SMTP_PORT,
         secure: account.secure ?? env.SMTP_SECURE,
         auth: { user: account.user, pass: account.password },
