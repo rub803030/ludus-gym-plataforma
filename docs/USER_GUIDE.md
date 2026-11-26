@@ -32,7 +32,7 @@ de poder entrar. Si no llegó, usa **Reenviar correo** en la pantalla de acceso.
 - Si la membresía está vencida, el sistema indica desde cuándo y ofrece renovar en el mismo flujo.
 - Si el gimnasio está lleno, el acceso se deniega con el motivo.
 
-## Para socios (app Android)
+## Para socios (apps Android e iOS)
 
 1. Confirmar el correo enviado al dar de alta la cuenta (en demo: `rubnlira2+socio@gmail.com` / `Ludus2026!`). Si el enlace no abre en la app, se puede pegar el código en la pantalla de verificación o abrir la web.
 2. **Inicio**: estado de membresía y días restantes.

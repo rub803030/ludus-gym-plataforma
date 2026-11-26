@@ -9,6 +9,7 @@ Plataforma integral de gestión operativa, financiera y de entrenamiento para **
 | `apps/web` | Next.js App Router + TypeScript + Tailwind | OWNER / MANAGER / STAFF |
 | `apps/api` | Node.js + TypeScript + Fastify, arquitectura limpia por dominio | Backend |
 | `apps/mobile` | Android nativo (Kotlin + Jetpack Compose) | MEMBER |
+| `apps/mobile-ios` | iOS nativo (Swift + SwiftUI) | MEMBER |
 | `packages/shared` | Zod + tipos + matriz RBAC | Compartido |
 
 ## Estado
@@ -43,6 +44,9 @@ pnpm dev
 Android: abrir `apps/mobile` con Android Studio y sincronizar Gradle.
 Para generar el release firmado sigue `docs/runbooks/android-release.md`.
 
+iOS: abrir `apps/mobile-ios/LudusGYM.xcodeproj` con Xcode 16 o superior y ejecutar el scheme `LudusGYM`.
+Para firma, versionado y TestFlight sigue `docs/runbooks/ios-release.md`.
+
 ## Seguridad
 
 La web rechaza credenciales de `MEMBER`. El móvil rechaza credenciales de staff.
@@ -71,7 +75,7 @@ la app permite abrir la web o pegar el código recibido.
 - `docs/DEPLOYMENT.md` — arquitectura, variables y checklist de venta.
 - `docs/CONFIGURATION.md` — configuración centralizada y URL pública.
 - `docs/USER_GUIDE.md` — guía de uso para el gimnasio.
-- `docs/runbooks/` — backups, rotación de secretos, incidentes, despliegue y Android.
+- `docs/runbooks/` — backups, rotación de secretos, incidentes, despliegue, Android e iOS.
 
 ## Soporte y licenciamiento
 

@@ -56,3 +56,22 @@ jobs:
         with: { distribution: temurin, java-version: '17' }
       - uses: gradle/actions/setup-gradle@v6
       - run: cd apps/mobile && sed -i 's/\r$//' ./gradlew && bash ./gradlew :app:testDebugUnitTest :app:lintDebug --no-daemon
+
+  ios:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Pruebas iOS (simulador, sin firma)
+        run: >-
+          xcodebuild -scheme LudusGYM
+          -project apps/mobile-ios/LudusGYM.xcodeproj
+          -destination 'generic/platform=iOS Simulator'
+          -derivedDataPath /tmp/ludus-ios-derived
+          CODE_SIGNING_ALLOWED=NO test
+      - name: Archive iOS (sin firma)
+        run: >-
+          xcodebuild -scheme LudusGYM
+          -project apps/mobile-ios/LudusGYM.xcodeproj
+          -destination 'generic/platform=iOS'
+          -archivePath /tmp/LudusGYM.xcarchive
+          CODE_SIGNING_ALLOWED=NO archive
