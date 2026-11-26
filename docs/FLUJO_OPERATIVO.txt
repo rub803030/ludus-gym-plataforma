@@ -1,0 +1,235 @@
+FLUJO OPERATIVO - LUDUS GYM
+===========================
+Actualizado: 26 de noviembre de 2026
+Publico objetivo: companero que se incorpora al repositorio Git.
+
+
+1. REPOSITORIO Y RAMA
+---------------------
+Repo GitHub: https://github.com/rub803030/ludus-gym-plataforma
+Rama principal: master (NO existe rama main).
+Clonar:
+    git clone https://github.com/rub803030/ludus-gym-plataforma.git
+    cd ludus-gym-platform
+
+Estado esperado: local y origin/master sincronizados. Verificar con:
+    git status -sb
+    git ls-remote --heads origin
+
+Historial relevante (de mas reciente a mas antiguo):
+    - build(mobile): publica el APK 0.2.0 con alta de gimnasios
+    - feat(gyms): alta publica con aprobacion de administrador y correccion del teclado
+    - build(mobile): prepara el release firmado para Play Store
+    - ci(web): despliega automaticamente en Vercel
+
+Autor de los commits: rub803030 <rubnlira2@gmail.com>
+Coautores obligatorios en TODOS los commits:
+    Co-authored-by: Alan-2023Dts <alancitomukul@outlook.com>
+    Co-authored-by: alecanche04-cyber <alecanche328@gmail.com>
+No escribir menciones de IA en commits, documentacion ni codigo.
+
+
+2. COMO HACER UN COMMIT
+-----------------------
+Usar siempre el script del repo; anade autor y trailers automaticamente:
+    git add -A
+    pnpm commit -m "feat(modulo): descripcion corta"
+
+O con un solo comando:
+    pnpm commit -m "fix: descripcion" -All
+
+Si se hace git commit directo, incluir los dos Co-authored-by a mano.
+No hacer push sin confirmacion del responsable del proyecto.
+
+
+3. ESTRUCTURA Y COMANDOS DE VERIFICACION
+----------------------------------------
+Monorepo pnpm + turbo. Node >= 20.11, pnpm 9.12.0.
+
+Desde la raiz:
+    pnpm install --frozen-lockfile
+    pnpm typecheck
+    pnpm lint
+    pnpm test
+    pnpm build
+    python scripts/verify-all.py
+    git diff --check
+
+El script verify-all.py omite tests/lint de Android si no hay JAVA_HOME.
+Para Android usa JDK 21 (no el JBR de Android Studio, que es Java 25):
+    $env:JAVA_HOME='C:\ruta\a\jdk-21'
+    cd apps\mobile
+    .\gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleRelease --no-daemon
+    cd ../..
+    python scripts/check-16kb.py apps/mobile/app/build/outputs/apk/release/app-release.apk
+
+YAML de workflows:
+    python -c "import yaml,glob; [yaml.safe_load(open(p,encoding='utf-8')) for p in glob.glob('.github/workflows/*.yaml')]; print('YAML OK')"
+
+
+4. DESPLIEGUE WEB (VERCEL)
+--------------------------
+URL publica: https://ludus-gym-plataforma.vercel.app
+Proyecto Vercel: ludus-gym-plataforma
+Cuenta/team: rubnlira2-9647
+Orden IDs: VERCEL_ORG_ID y VERCEL_PROJECT_ID (GitHub Secrets).
+
+Flujo automatico:
+    - Archivo: .github/workflows/deploy-web.yaml
+    - Se dispara con cada push a master (y con workflow_dispatch manual).
+    - Pasos: checkout, pnpm install, vercel pull, vercel build --prod y
+      vercel deploy --prebuilt --prod (ver nota sobre el token mas abajo).
+    - La variable API_UPSTREAM_URL se fija en el workflow a:
+      https://ludus-gym-plataforma-api.fly.dev
+      (es sensible en Vercel y no se puede bajar con vercel pull; por eso se define en el step).
+
+Secrets del repo (GitHub -> Settings -> Secrets and variables -> Actions):
+    VERCEL_TOKEN          token de Vercel (ver aviso de caducidad mas abajo)
+    VERCEL_ORG_ID         ID de la cuenta/team de Vercel
+    VERCEL_PROJECT_ID     ID del proyecto de Vercel
+Ninguno de estos valores debe versionarse ni imprimirse en logs.
+
+Ejecutar el deploy a mano si hace falta:
+    gh workflow run deploy-web.yaml --repo rub803030/ludus-gym-plataforma --ref master
+    gh run list --repo rub803030/ludus-gym-plataforma --workflow=deploy-web.yaml
+    gh run view <ID> --repo rub803030/ludus-gym-plataforma --log-failed
+
+Ajustes del proyecto en Vercel ya aplicados:
+    - Node.js: 26.x (20.x fue descontinuado y rompia el build).
+    - Root Directory: vacio (el workflow ejecuta la CLI desde apps/web).
+Si Vercel vuelve a poner Root Directory = apps/web, el deploy falla con
+"the path apps/web/apps/web does not exist". Corregirlo en Project Settings
+o con la API PATCH /v9/projects/{id} enviando {"rootDirectory": null}.
+
+AVISO IMPORTANTE SOBRE VERCEL_TOKEN:
+    El token actual fue obtenido de la sesion local de Vercel CLI y caduca a las
+    8 horas. Mientras este vigente, el deploy automatico funciona. Cuando falle
+    con "invalidToken", hay que crear un token permanente:
+      1. Entrar en https://vercel.com/account/tokens con la cuenta rubnlira2@gmail.com.
+      2. Crear un token con nombre "CI deploy ludus-gym-plataforma", scope del
+         proyecto ludus-gym-plataforma y expiracion "No expiration".
+      3. Copiar el valor (se muestra una sola vez) y guardarlo:
+         gh secret set VERCEL_TOKEN --body "EL_TOKEN" --repo rub803030/ludus-gym-plataforma
+      4. Volver a ejecutar:
+         gh workflow run deploy-web.yaml --repo rub803030/ludus-gym-plataforma --ref master
+    No se pudo crear ese token permanente desde la API porque la sesion CLI es
+    OAuth y Vercel responde "Cannot create tokens for this app". Tampoco se pudo
+    vincular el repo a Vercel por API: exige anadir primero una Login Connection
+    de GitHub en la cuenta de Vercel.
+
+Comprobacion de que la web publica ya tiene la version nueva:
+    $r = Invoke-WebRequest -Uri 'https://ludus-gym-plataforma.vercel.app/downloads/LudusGYM-Fase5.apk' -Method Head -UseBasicParsing
+    "size=$($r.Headers['Content-Length']) modified=$($r.Headers['Last-Modified'])"
+    Tamano esperado del APK 0.2.0: 25079979 bytes.
+
+
+5. API Y BASE DE DATOS
+----------------------
+API produccion: https://ludus-gym-plataforma-api.fly.dev
+La web llama siempre a /api/* y Next.js redirige a API_UPSTREAM_URL.
+CORS_ORIGIN en Fly: https://ludus-gym-plataforma.vercel.app
+
+Migraciones SQL (infra/supabase/migrations/0001 ... 0009):
+    python scripts/apply-all-migrations.py
+Usa DIRECT_URL y aplica DDL + seeds; pnpm db:migrate NO aplica estas SQL.
+Las migraciones 0008 (campos de registro de gimnasio, rol ADMIN) y 0009
+(cuentas ADMIN globales) deben estar aplicadas en la BD desplegada.
+
+Cuentas ADMIN globales creadas por la migracion 0009:
+    rubnlira2@gmail.com        (Owner2026!)
+    alancitomukul@outlook.com  (AlanOwner2026!)
+    alecanche328@gmail.com     (AlejandroOwner2026!)
+Los OWNER siguen siendo administradores unicamente de su propio gimnasio.
+
+Demo MEMBER: rubnlira2+socio@gmail.com / Ludus2026!
+
+
+6. ALTA DE GIMNASIOS (FLUJO EN DOS PASOS)
+-----------------------------------------
+Formulario publico: /register-gym (web, Android e iOS).
+Campos obligatorios: nombre, direccion, ciudad, estado, CP, telefono, correo
+de contacto, representante legal y RFC.
+Opcionales: horario, sitio web/redes, descripcion y numero de sucursales.
+
+1) POST /api/gyms/register (publico) crea el gimnasio en PENDING_VERIFICATION
+   y envia al correo del dueno un enlace de un solo uso:
+   /verify-gym?token=...  (deep link iOS: ludusgym://verify-email?token=...)
+   Vigencia: 30 minutos (EMAIL_VERIFICATION_TTL_MINUTES).
+2) Tras verificar el correo, se envia a los ADMIN un enlace de aprobacion:
+   /approve-gym?token=...  tambien de un solo uso.
+   Solo al abrirlo se activa el gimnasio, se generan codigo/QR y se notifica
+   al contacto.
+3) Consola global de aprobaciones: /admin/gyms (solo rol ADMIN).
+   API: GET /api/admin/gyms/pending y POST /api/admin/gyms/:id/approve.
+
+Errores exactos que debe mostrar la UI:
+    CROSS_GYM_PASS      "Este pase pertenece a otro gimnasio"
+    NO_GYM              "Unete a un gimnasio para continuar."
+    EMAIL_NOT_VERIFIED  "Tu correo aun no esta verificado. Revisa tu bandeja."
+    GYM_NOT_ACTIVE      "Este gimnasio todavia no esta activo."
+    Sin conexion        "Sin conexion. Revisa tu red e intentarlo de nuevo."
+Los tokens devToken/devLink solo se devuelven fuera de production.
+
+Variables de la API en Fly relacionadas con correo:
+    RESEND_API_KEY o SMTP_*, EMAIL_FROM, WEB_APP_URL,
+    EMAIL_VERIFICATION_TTL_MINUTES=30, ADMIN_APPROVAL_EMAILS (opcional).
+
+
+7. ANDROID Y APK
+----------------
+Paquete: com.ludus.gym
+versionCode 4 / versionName 0.2.0, minSdk 26, targetSdk 36.
+URL de descarga publica: https://ludus-gym-plataforma.vercel.app/apk
+Archivo servido: apps/web/public/downloads/LudusGYM-Fase5.apk
+Hash SHA-256 del APK 0.2.0:
+    737D1D080B227643FE3A41727378BADBA01FB9AC7F6985CDD4CC01DD9459F05B
+Certificado de firma (el mismo que la version anterior):
+    CN=Ludus GYM, OU=Mobile, O=Ludus GYM, L=Mexico, ST=Mexico, C=MX
+    SHA-256: ac0ac7ce2f79670e7898671da1990ce08bb04673af77df3d33bce79e192a88fb
+Se puede instalar encima sin desinstalar.
+
+Si Vercel aun no sirve el APK nuevo, el enlace directo y definitivo es:
+    https://raw.githubusercontent.com/rub803030/ludus-gym-plataforma/db6dd47/apps/web/public/downloads/LudusGYM-Fase5.apk
+
+Play Store: NO se ha creado ni pagado la cuenta de 25 USD. La subida con
+r0adkll/upload-google-play en release.yaml esta inactiva hasta configurar:
+    LUDUS_RELEASE_KEYSTORE_B64, LUDUS_RELEASE_STORE_PASSWORD,
+    LUDUS_RELEASE_KEY_ALIAS, LUDUS_RELEASE_KEY_PASSWORD,
+    PLAY_SERVICE_ACCOUNT_JSON
+No publicar ni pagar sin autorizacion explica.
+
+
+8. iOS
+------
+Proyecto: apps/mobile-ios/LudusGYM.xcodeproj (SwiftUI, iOS 17+).
+Bundle: com.ludus.gym.ios, version 0.2.0 (build 4).
+Login exclusivo para MEMBER; STAFF/OWNER/MANAGER reciben 401.
+No hay TestFlight ni IPA publico: requiere Apple Developer de pago y Mac/Xcode.
+La firma gratuita por cable caduca a los 7 dias.
+CI usa CODE_SIGNING_ALLOWED=NO.
+El job "ios" de ci.yaml falla en el runner macOS (exit 74); no afecta al APK
+ni al deploy web. Revisar en Mac con Xcode si se quiere resolver.
+
+Keychain iOS: access_token, refresh_token, member_id, active_gym_id, device_id
+con kSecAttrAccessibleWhenUnlockedThisDeviceOnly. Conservar active_gym_id en el
+refresh y NO borrar device_id al cerrar sesion.
+
+
+9. CI / WORKFLOWS
+-----------------
+    .github/workflows/ci.yaml        push/PR a master: typecheck, lint, tests,
+                                     build, tests de seguridad, Android e iOS.
+    .github/workflows/release.yaml   solo tags v*: imagen API, AAB y subida
+                                     a Play (inactiva sin secretos).
+    .github/workflows/deploy-web.yaml push a master: deploy de la web a Vercel.
+El job iOS de ci.yaml actualmente falla; quality y android pasan.
+
+
+10. REGLAS DE ORO
+-----------------
+- Nunca commitear .env.local, keystores, tokens ni secretos.
+- No hacer push sin que el responsable lo autorice.
+- No publicar en Play Store ni pagar la cuenta sin autorizacion.
+- Todo commit debe llevar los dos Co-authored-by indicados arriba.
+- Verificar con scripts/verify-all.py y git diff --check antes de commitear.
+- Si el deploy de Vercel falla, mirar primero run --log-failed y esta guia.
