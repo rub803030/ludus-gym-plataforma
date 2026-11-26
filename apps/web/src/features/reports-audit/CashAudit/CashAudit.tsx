@@ -304,7 +304,7 @@ export function CashAudit() {
       <ConfirmModal
         open={refundTarget !== null}
         title="Reembolsar cobro"
-        description={`¿Reembolsar ${formatCurrency(refundTarget?.amount ?? 0)} del cobro ${refundTarget?.reference ?? ''}? La operación quedará registrada en auditoría.`}
+        description={`¿Reembolsar ${formatCurrency(refundTarget?.amount ?? 0)} del cobro ${refundTarget?.reference ?? ''}? Se revocará la membresía asociada y el acceso; la operación quedará registrada en auditoría.`}
         confirmLabel="Confirmar reembolso"
         loading={refunding}
         onConfirm={() => void handleRefund()}

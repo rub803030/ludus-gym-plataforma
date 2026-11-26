@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, getErrorMessage } from '@/lib/api-client'
 import { Button } from '@/ui/primitives/Button'
-import type { GymVerification } from '@/types'
+import { isApiError, type GymVerification } from '@/types'
 
 type State = 'checking' | 'success' | 'error' | 'idle'
 
@@ -18,10 +18,12 @@ export function ApproveGym() {
   const [message, setMessage] = useState('')
   const [result, setResult] = useState<GymVerification | null>(null)
   const [retryCount, setRetryCount] = useState(0)
+  const [loginRequired, setLoginRequired] = useState(false)
 
   const approve = useCallback(async (value: string) => {
     setState('checking')
     setMessage('')
+    setLoginRequired(false)
     try {
       const verification = await api.gyms.approve(value)
       setResult(verification)
@@ -30,6 +32,7 @@ export function ApproveGym() {
     } catch (error) {
       setResult(null)
       setState('error')
+      setLoginRequired(isApiError(error) && error.status === 401)
       setMessage(getErrorMessage(error))
     }
   }, [])
@@ -83,6 +86,14 @@ export function ApproveGym() {
           <div role="alert" className="space-y-4 border-l-2 border-ignition bg-surface px-4 py-5">
             <p className="text-sm font-semibold uppercase tracking-[0.12em] text-ignition">No se pudo autorizar</p>
             <p className="text-sm leading-relaxed text-ink">{message}</p>
+            {loginRequired && token ? (
+              <Link
+                href={`/login?next=${encodeURIComponent(`/approve-gym?token=${token}`)}`}
+                className="inline-flex min-h-12 items-center justify-center bg-volt px-5 py-3 text-[11px] font-bold uppercase tracking-[0.16em] text-canvas"
+              >
+                Iniciar sesión para autorizar
+              </Link>
+            ) : null}
             <Button
               variant="ghost"
               onClick={() => {

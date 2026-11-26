@@ -317,7 +317,6 @@ export async function apiFetch<T>(path: string, init: ApiFetchInit = {}): Promis
 export interface ChargeRequest {
   memberId: string
   planId: string
-  amount: number
   currency: 'MXN'
   method: PaymentMethod
   idempotencyKey: string
@@ -491,10 +490,11 @@ export const api = {
       return normalizePaginated(raw, normalizePayment, ['payments', 'cobros'])
     },
     async charge(input: ChargeRequest): Promise<PaymentView> {
+      const { idempotencyKey, ...charge } = input
       const raw = await apiFetch<unknown>('/api/payments/charge', {
         method: 'POST',
-        idempotencyKey: input.idempotencyKey,
-        body: JSON.stringify(input),
+        idempotencyKey,
+        body: JSON.stringify(charge),
       })
       return normalizePayment(raw)
     },

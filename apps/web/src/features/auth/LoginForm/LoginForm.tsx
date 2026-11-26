@@ -59,7 +59,12 @@ export function LoginForm() {
         return
       }
       setSession({ principal, csrfToken: getCsrfFromLogin(raw) })
-      router.replace('/dashboard')
+      const requestedPath = new URLSearchParams(window.location.search).get('next')
+      const safePath = requestedPath && requestedPath.startsWith('/') &&
+        !requestedPath.startsWith('//') && !requestedPath.includes('\\')
+        ? requestedPath
+        : '/dashboard'
+      router.replace(safePath)
       router.refresh()
     } catch (error) {
       if (isApiError(error) && error.code === 'EMAIL_NOT_VERIFIED') {

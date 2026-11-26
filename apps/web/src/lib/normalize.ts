@@ -165,7 +165,9 @@ export function normalizeMember(raw: unknown): MemberView {
     pick(asRecord(pick(r, 'medicalDetails')), 'notes')
   )
   const endDate = asString(coalesce(pick(m, 'endDate'), pick(m, 'expiresAt'), pick(r, 'expiresAt')))
-  const status = normalizeStatus(coalesce(pick(r, 'status'), pick(m, 'status'), pick(r, 'membershipStatus')))
+  const status = normalizeStatus(
+    coalesce(pick(r, 'gymMembershipStatus'), pick(m, 'status'), pick(r, 'membershipStatus'), pick(r, 'status')),
+  )
   const membership = membershipRaw || endDate
     ? {
         id: asString(pick(m, 'id'), 'sin-id'),

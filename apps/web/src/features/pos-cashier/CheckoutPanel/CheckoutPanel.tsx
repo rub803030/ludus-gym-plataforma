@@ -11,7 +11,6 @@ import {
 import { formatCurrency, formatDateTime, initials } from '@/lib/format'
 import type { MemberView, PaymentMethod, PaymentView, PlanView } from '@/types'
 import { Button } from '@/ui/primitives/Button'
-import { NumericInput } from '@/ui/primitives/NumericInput'
 import { PageHeader } from '@/ui/layout/PageHeader'
 import { QrCode } from '@/ui/primitives/QrCode'
 import { StatusBadge } from '@/ui/primitives/StatusBadge'
@@ -29,7 +28,6 @@ export function CheckoutPanel() {
   const [memberQuery, setMemberQuery] = useState('')
   const [memberId, setMemberId] = useState('')
   const [planId, setPlanId] = useState('')
-  const [amount, setAmount] = useState(0)
   const [method, setMethod] = useState<PaymentMethod>('cash')
   const [loadingData, setLoadingData] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -74,16 +72,11 @@ export function CheckoutPanel() {
   const selectedMember = members.find((member) => member.id === memberId) ?? null
   const selectedPlan = plans.find((plan) => plan.id === planId) ?? null
 
-  useEffect(() => {
-    if (selectedPlan) setAmount(selectedPlan.price)
-  }, [selectedPlan])
-
   function resetCheckout() {
     setReceipt(null)
     setMemberId('')
     setMemberQuery('')
     setPlanId('')
-    setAmount(0)
     setMethod('cash')
     setError(null)
     idempotencyRef.current = createIdempotencyKey()
@@ -92,8 +85,8 @@ export function CheckoutPanel() {
   async function handleCharge(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (lockRef.current || submitting || !idempotencyReady || !idempotencyRef.current) return
-    if (!memberId || !planId || amount <= 0) {
-      setError('Selecciona un socio, un plan y captura un monto mayor a cero.')
+    if (!memberId || !selectedPlan) {
+      setError('Selecciona un socio y un plan.')
       return
     }
     lockRef.current = true
@@ -105,8 +98,8 @@ export function CheckoutPanel() {
       id: optimisticId,
       memberId,
       memberName: selectedMember?.fullName ?? 'Socio',
-      planName: selectedPlan?.name ?? 'Plan',
-      amount,
+      planName: selectedPlan.name,
+      amount: selectedPlan.price,
       currency: 'MXN',
       method,
       status: 'pending',
@@ -119,7 +112,6 @@ export function CheckoutPanel() {
     const request: ChargeRequest = {
       memberId,
       planId,
-      amount: Math.round(amount),
       currency: 'MXN',
       method,
       idempotencyKey: idempotencyRef.current,
@@ -321,9 +313,16 @@ export function CheckoutPanel() {
         <section className="space-y-10">
           <div>
             <h2 className="mb-4 border-b border-hairline pb-3 font-display text-lg font-extrabold uppercase tracking-[-0.03em]">
-              03 · Importe y método
+              03 · Importe del plan y método
             </h2>
-            <NumericInput value={amount} onChange={setAmount} currency label="Monto a cobrar" step={50} min={0} />
+            <div className="space-y-2">
+              <span className="block text-xs font-semibold uppercase tracking-[0.12em] text-muted">
+                Importe del plan
+              </span>
+              <p className="tabular text-2xl font-bold text-ink">
+                {selectedPlan ? formatCurrency(selectedPlan.price) : 'Selecciona un plan'}
+              </p>
+            </div>
             <fieldset className="mt-7">
               <legend className="mb-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted">
                 Método de pago
@@ -351,13 +350,13 @@ export function CheckoutPanel() {
             <div className="flex items-baseline justify-between">
               <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted">Total</span>
               <span className="tabular font-display text-3xl font-extrabold tracking-[-0.04em] text-volt">
-                {formatCurrency(amount)}
+                {formatCurrency(selectedPlan?.price ?? 0)}
               </span>
             </div>
             <p className="tabular mt-3 text-[10px] uppercase tracking-[0.12em] text-muted">
               Llave de idempotencia · {idempotencyRef.current?.slice(0, 18) ?? '—'}…
             </p>
-            <Button type="submit" fullWidth loading={submitting} className="mt-7" disabled={!idempotencyReady || !memberId || !planId || amount <= 0}>
+            <Button type="submit" fullWidth loading={submitting} className="mt-7" disabled={!idempotencyReady || !memberId || !selectedPlan}>
               {submitting ? 'Procesando cargo' : 'Confirmar cobro'}
             </Button>
             <p className="mt-4 text-center text-[11px] leading-relaxed text-muted">
