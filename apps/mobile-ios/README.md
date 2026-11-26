@@ -13,7 +13,10 @@ App iOS nativa de socios, equivalente a `apps/mobile` (Android). Es **exclusiva 
 ## Cómo abrirla
 
 Abrir `apps/mobile-ios/LudusGYM.xcodeproj` con Xcode 16 o superior y ejecutar el scheme `LudusGYM`.
-El proyecto no incluye firma: en Xcode selecciona tu equipo en *Signing & Capabilities* antes de distribuir.
+El proyecto permite firma: no incluye certificados ni perfiles, así que en Xcode selecciona tu equipo
+en *Signing & Capabilities*. CI desactiva la firma explícitamente con `CODE_SIGNING_ALLOWED=NO`.
+Para instalarla en un iPhone propio con un Apple ID gratuito sigue
+`docs/runbooks/ios-release.md` → *Probar en un iPhone propio*.
 
 ```bash
 cd apps/mobile-ios

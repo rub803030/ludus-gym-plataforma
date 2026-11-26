@@ -24,6 +24,31 @@ python scripts/verify-all.py
 git status --short
 ```
 
+## Probar en un iPhone propio (sin TestFlight)
+
+Con un Mac y un Apple ID gratuito se puede instalar la app por cable, sin publicarla ni pagar
+Apple Developer. No genera un link HTTP de descarga: Xcode instala el binario directamente.
+
+1. Abrir `apps/mobile-ios/LudusGYM.xcodeproj` en Xcode 16 o superior.
+2. Target `LudusGYM` → *Signing & Capabilities* → marcar *Automatically manage signing* y elegir
+   tu Apple ID en *Team* (aparece como *Personal Team*). Si el bundle id `com.ludus.gym.ios`
+   está ocupado para esa cuenta, cámbialo solo para la prueba (por ejemplo `com.tuUsuario.ludusgym`).
+3. Conectar el iPhone por USB, desbloquearlo y aceptar *Confiar en este equipo*.
+4. En el selector de dispositivos del scheme `LudusGYM` elegir el iPhone (no un simulador).
+5. Product → Run (`⌘R`). Xcode compila, firma con el certificado gratuito e instala la app.
+6. En el iPhone: Ajustes → General → VPN y administración de dispositivos → perfil de desarrollador
+   → *Confiar*. Después ya se puede abrir la app desde la pantalla de inicio.
+
+La firma gratuita caduca a los 7 días: vuelve a conectar el iPhone y pulsa `⌘R` para renovarla.
+Para comprobar el deep link de verificación:
+
+```bash
+xcrun devicectl device openurl --device EL_UDID 'ludusgym://verify-email?token=EL_TOKEN_DEL_CORREO'
+```
+
+Si necesitas un enlace que se pueda enviar a otras personas, usa TestFlight (sección siguiente):
+requiere cuenta de Apple Developer y subir el archive a App Store Connect.
+
 ## Firma y distribución
 
 1. Abrir `apps/mobile-ios/LudusGYM.xcodeproj`.
