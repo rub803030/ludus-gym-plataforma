@@ -66,6 +66,7 @@ No se han aplicado migraciones, no se ha conectado a staging, no se ha publicado
 
 - `scripts/apply-all-migrations.py` aplica todas las migraciones y semillas usando `.env.local`; no usarlo como atajo. Revisar y ejecutar únicamente migraciones autorizadas en staging.
 - `origin/master` contiene un workflow de Vercel que despliega a producción al hacer push a `main`/`master`, o manualmente. Esta estabilización no debe fusionarse ni activar ese workflow antes de completar la aprobación de release.
+- La version upstream de `docs/FLUJO_OPERATIVO.txt` contenia credenciales y datos personales en texto claro. La rama sustituye el archivo por una copia redactada, pero el commit original sigue en el historial remoto: tratar los secretos como comprometidos, rotarlos y coordinar una limpieza segura del historial antes de publicar esta rama.
 - `Member.gymId` continúa existiendo por compatibilidad; no debe reintroducirse como fuente de autorización.
 - `infra/supabase/migrations/0009_admin_accounts.sql` permanece sin cambios porque no se conoce su estado en entornos compartidos.
 
