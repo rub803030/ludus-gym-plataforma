@@ -1,13 +1,17 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { chargeSchema } from '@ludus/shared'
+import { Prisma } from '@prisma/client'
 import { prisma } from '../../shared/database/prisma.js'
 import { DomainError } from '../../shared/errors/domain-error.js'
 import { getPrincipal } from '../../shared/middleware/request-context.js'
 import { requirePermission } from '../../shared/middleware/rbac.js'
 import { requireAuth } from '../../shared/http.js'
 import { idempotencyGuard } from '../../shared/middleware/idempotency.js'
+import { setTenantContext } from '../../shared/database/tenant-context.js'
 import { writeAudit } from '../../shared/audit.js'
+import { memberGymScope } from '../../shared/gym-membership.js'
+import { membershipPeriod } from './membership-period.js'
 
 const planFlagSchema = z.enum(['gym_access', 'classes', 'nutrition', 'guest_pass'])
 
@@ -54,6 +58,52 @@ function parse<T>(schema: z.ZodType<T>, value: unknown): T {
   const result = schema.safeParse(value)
   if (!result.success) throw new DomainError('VALIDATION_ERROR', result.error.issues[0]?.message ?? 'Datos inválidos', 400)
   return result.data
+}
+
+type ChargeBody = z.infer<typeof chargeSchema>
+
+function isUniqueConstraintError(error: unknown): error is Prisma.PrismaClientKnownRequestError {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002'
+}
+
+function chargeResponse(
+  payment: { id: string; receiptNumber: string; amountCents: number; method: string; status: string; createdAt: Date },
+  member: { id: string; firstName: string; lastName: string },
+  plan: { name: string },
+) {
+  return {
+    id: payment.id,
+    receiptNumber: payment.receiptNumber,
+    amount: payment.amountCents / 100,
+    method: payment.method,
+    status: payment.status,
+    createdAt: payment.createdAt.toISOString(),
+    member: { id: member.id, name: `${member.firstName} ${member.lastName}` },
+    plan: plan.name,
+    accessQrHint: 'Pide al socio que muestre su QR dinámico en el torniquete',
+  }
+}
+
+async function findIdempotentCharge(gymId: string, idempotencyKey: string, body: ChargeBody) {
+  return prisma.$transaction(async (tx) => {
+    await setTenantContext(tx, gymId)
+    const payment = await tx.payment.findFirst({ where: { gymId, idempotencyKey } })
+    if (!payment) return null
+    if (
+      payment.memberId !== body.memberId ||
+      payment.planId !== body.planId ||
+      payment.method !== body.method ||
+      payment.currency !== body.currency
+    ) {
+      throw new DomainError('CONFLICT', 'La clave de idempotencia ya se usó para otro cobro', 409)
+    }
+    const [member, plan] = await Promise.all([
+      tx.member.findUnique({ where: { id: payment.memberId } }),
+      tx.plan.findFirst({ where: { id: payment.planId, gymId } }),
+    ])
+    if (!member || !plan) throw new DomainError('NOT_FOUND', 'No se pudo recuperar el cobro procesado', 404)
+    return chargeResponse(payment, member, plan)
+  })
 }
 
 export async function registerBillingRoutes(app: FastifyInstance): Promise<void> {
@@ -134,79 +184,116 @@ export async function registerBillingRoutes(app: FastifyInstance): Promise<void>
     async (req, reply) => {
       const body = parse(chargeSchema, req.body)
       const principal = getPrincipal(req)
-      const amountCents = body.amount
+      const idempotencyKey = req.idempotencyKey
+      if (!idempotencyKey) {
+        throw new DomainError('VALIDATION_ERROR', 'Idempotency-Key requerido', 400)
+      }
 
-      const result = await prisma.$transaction(async (tx) => {
-        const member = await tx.member.findFirst({ where: { id: body.memberId, gymId: principal.gymId } })
-        if (!member) throw new DomainError('NOT_FOUND', 'Socio no encontrado', 404)
-        const plan = await tx.plan.findFirst({ where: { id: body.planId, gymId: principal.gymId } })
-        if (!plan) throw new DomainError('NOT_FOUND', 'Plan no encontrado', 404)
+      const previouslyProcessed = await findIdempotentCharge(principal.gymId, idempotencyKey, body)
+      if (previouslyProcessed) {
+        reply.code(201)
+        return previouslyProcessed
+      }
 
-        let session = await tx.cashSession.findFirst({
-          where: { gymId: principal.gymId, status: 'OPEN' },
-          orderBy: { openedAt: 'desc' },
-        })
-        if (!session) {
-          session = await tx.cashSession.create({
-            data: { gymId: principal.gymId, openedBy: principal.id, openingAmountCents: 0 },
+      const createCharge = () => prisma.$transaction(async (tx) => {
+          await setTenantContext(tx, principal.gymId)
+          const member = await tx.member.findFirst({
+            where: { id: body.memberId, deletedAt: null, ...memberGymScope(principal.gymId) },
           })
-        }
+          if (!member) throw new DomainError('NOT_FOUND', 'Socio no encontrado', 404)
+          const plan = await tx.plan.findFirst({ where: { id: body.planId, gymId: principal.gymId } })
+          if (!plan) throw new DomainError('NOT_FOUND', 'Plan no encontrado', 404)
 
-        const receiptCount = await tx.payment.count({ where: { gymId: principal.gymId } })
-        const receiptNumber = `LUD-${new Date().getFullYear()}-${String(receiptCount + 1).padStart(6, '0')}`
+          const amountCents = plan.priceCents
+          const now = new Date()
+          const today = new Date(now.getTime())
+          today.setUTCHours(0, 0, 0, 0)
+          const receiptYear = now.getUTCFullYear()
+          const [receiptCounter] = await tx.$queryRaw<Array<{ last_value: bigint }>>`
+            INSERT INTO public.receipt_counters (gym_id, receipt_year, last_value)
+            VALUES (${principal.gymId}::uuid, ${receiptYear}, 1)
+            ON CONFLICT (gym_id, receipt_year) DO UPDATE
+            SET last_value = public.receipt_counters.last_value + 1,
+                updated_at = now()
+            RETURNING last_value
+          `
+          if (!receiptCounter) throw new Error('No se pudo asignar el número de recibo')
+          const receiptNumber = `LUD-${receiptYear}-${String(Number(receiptCounter.last_value)).padStart(6, '0')}`
 
-        const payment = await tx.payment.create({
-          data: {
-            gymId: principal.gymId,
-            memberId: member.id,
-            planId: plan.id,
-            cashSessionId: session.id,
-            amountCents,
-            method: body.method,
-            status: 'PAID',
-            idempotencyKey: body.idempotencyKey,
-            receiptNumber,
-            createdBy: principal.id,
-          },
-        })
-
-        const now = new Date()
-        const start = now < new Date(member.joinedAt) ? now : now
-        const end = new Date(start)
-        end.setDate(end.getDate() + plan.durationDays)
-
-        const existing = await tx.membership.findFirst({
-          where: { memberId: member.id, status: 'ACTIVE' },
-        })
-        if (existing) {
-          await tx.membership.update({
-            where: { id: existing.id },
-            data: { status: 'ACTIVE', startDate: start, endDate: end, planId: plan.id },
+          await tx.membership.updateMany({
+            where: {
+              memberId: member.id,
+              status: 'ACTIVE',
+              endDate: { lt: today },
+              plan: { gymId: principal.gymId },
+            },
+            data: { status: 'EXPIRED' },
           })
-        } else {
-          await tx.membership.create({
+          const existing = await tx.membership.findFirst({
+            where: { memberId: member.id, status: 'ACTIVE', plan: { gymId: principal.gymId } },
+            orderBy: { endDate: 'desc' },
+          })
+          const { startDate, endDate } = membershipPeriod(now, existing?.endDate ?? null, plan.durationDays)
+
+          const membership = await tx.membership.create({
             data: {
               memberId: member.id,
               planId: plan.id,
               status: 'ACTIVE',
-              startDate: start,
-              endDate: end,
+              startDate,
+              endDate,
             },
           })
-        }
-        await tx.member.update({ where: { id: member.id }, data: { status: 'ACTIVE' } })
-        await tx.cashMovement.create({
-          data: {
-            cashSessionId: session.id,
-            paymentId: payment.id,
-            kind: 'INCOME',
-            amountCents,
-            concept: `Membresía ${plan.name} · ${member.firstName} ${member.lastName}`,
-            createdBy: principal.id,
-          },
-        })
-        return { payment, plan, member, sessionId: session.id }
+
+          let session = await tx.cashSession.findFirst({
+            where: { gymId: principal.gymId, status: 'OPEN' },
+            orderBy: { openedAt: 'desc' },
+          })
+          if (!session) {
+            session = await tx.cashSession.create({
+              data: { gymId: principal.gymId, openedBy: principal.id, openingAmountCents: 0 },
+            })
+          }
+
+          const payment = await tx.payment.create({
+            data: {
+              gymId: principal.gymId,
+              memberId: member.id,
+              membershipId: membership.id,
+              planId: plan.id,
+              cashSessionId: session.id,
+              amountCents,
+              method: body.method,
+              currency: body.currency,
+              status: 'PAID',
+              idempotencyKey,
+              receiptNumber,
+              createdBy: principal.id,
+            },
+          })
+
+          await tx.cashMovement.create({
+            data: {
+              cashSessionId: session.id,
+              paymentId: payment.id,
+              kind: 'INCOME',
+              amountCents,
+              concept: `Membresía ${plan.name} · ${member.firstName} ${member.lastName}`,
+              createdBy: principal.id,
+            },
+          })
+          return { payment, plan, member, sessionId: session.id, amountCents, receiptNumber }
       })
+      let result: Awaited<ReturnType<typeof createCharge>>
+      try {
+        result = await createCharge()
+      } catch (error) {
+        if (!isUniqueConstraintError(error)) throw error
+        const duplicate = await findIdempotentCharge(principal.gymId, idempotencyKey, body)
+        if (!duplicate) throw error
+        reply.code(201)
+        return duplicate
+      }
 
       await writeAudit({
         gymId: principal.gymId,
@@ -215,21 +302,11 @@ export async function registerBillingRoutes(app: FastifyInstance): Promise<void>
         action: 'payment.charge',
         entity: 'payment',
         entityId: result.payment.id,
-        after: { amountCents, receiptNumber: result.payment.receiptNumber },
+        after: { amountCents: result.amountCents, receiptNumber: result.receiptNumber },
       })
 
       reply.code(201)
-      return {
-        id: result.payment.id,
-        receiptNumber: result.payment.receiptNumber,
-        amount: amountCents / 100,
-        method: result.payment.method,
-        status: result.payment.status,
-        createdAt: result.payment.createdAt.toISOString(),
-        member: { id: result.member.id, name: `${result.member.firstName} ${result.member.lastName}` },
-        plan: result.plan.name,
-        accessQrHint: 'Pide al socio que muestre su QR dinámico en el torniquete',
-      }
+      return chargeResponse(result.payment, result.member, result.plan)
     },
   )
 
@@ -237,15 +314,61 @@ export async function registerBillingRoutes(app: FastifyInstance): Promise<void>
     const { id } = req.params as { id: string }
     const body = parse(refundSchema, req.body)
     const principal = getPrincipal(req)
-    const payment = await prisma.payment.findFirst({ where: { id, gymId: principal.gymId } })
-    if (!payment) throw new DomainError('NOT_FOUND', 'Cobro no encontrado', 404)
-    if (payment.status !== 'PAID') throw new DomainError('CONFLICT', 'Este cobro no se puede cancelar', 409)
 
     await prisma.$transaction(async (tx) => {
-      await tx.payment.update({
-        where: { id },
+      await setTenantContext(tx, principal.gymId)
+      const payment = await tx.payment.findFirst({ where: { id, gymId: principal.gymId } })
+      if (!payment) throw new DomainError('NOT_FOUND', 'Cobro no encontrado', 404)
+      if (payment.status !== 'PAID') throw new DomainError('CONFLICT', 'Este cobro no se puede cancelar', 409)
+      if (payment.membershipId) {
+        const membership = await tx.membership.findFirst({
+          where: {
+            id: payment.membershipId,
+            memberId: payment.memberId,
+            status: 'ACTIVE',
+            plan: { gymId: principal.gymId },
+          },
+        })
+        if (membership) {
+          const otherPaidPayments = await tx.payment.count({
+            where: {
+              gymId: principal.gymId,
+              membershipId: membership.id,
+              id: { not: payment.id },
+              status: 'PAID',
+            },
+          })
+          if (otherPaidPayments > 0) {
+            throw new DomainError('CONFLICT', 'La membresía está vinculada a otros cobros pagados; requiere revisión', 409)
+          }
+          await tx.membership.update({
+            where: { id: membership.id },
+            data: { status: 'EXPIRED' },
+          })
+        }
+      } else {
+        const today = new Date()
+        today.setUTCHours(0, 0, 0, 0)
+        const activeMembership = await tx.membership.findFirst({
+          where: {
+            memberId: payment.memberId,
+            planId: payment.planId,
+            status: 'ACTIVE',
+            startDate: { lte: today },
+            endDate: { gte: today },
+            plan: { gymId: principal.gymId },
+          },
+        })
+        if (activeMembership) {
+          throw new DomainError('CONFLICT', 'Este cobro legado no está vinculado a su membresía; requiere revisión', 409)
+        }
+      }
+
+      const updated = await tx.payment.updateMany({
+        where: { id, gymId: principal.gymId, status: 'PAID' },
         data: { status: 'REFUNDED', refundedBy: principal.id, refundedAt: new Date(), refundReason: body.reason },
       })
+      if (updated.count !== 1) throw new DomainError('CONFLICT', 'Este cobro ya fue procesado', 409)
       if (payment.cashSessionId) {
         await tx.cashMovement.create({
           data: {

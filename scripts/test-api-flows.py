@@ -111,9 +111,12 @@ plans_data = call("GET", "/api/plans", headers=WEB)[1]
 member_id = members_data["items"][0]["id"]
 plan_id = plans_data[0]["id"]
 idem = "ludus_" + str(uuid.uuid4())
-charge_body = {"memberId": member_id, "planId": plan_id, "amount": plans_data[0]["price"], "currency": "MXN", "method": "card", "idempotencyKey": idem, "concept": "Mensualidad demo"}
+charge_body = {"memberId": member_id, "planId": plan_id, "currency": "MXN", "method": "card"}
 charge = check("cobro", "POST", "/api/payments/charge", charge_body, headers={**WEB, "Idempotency-Key": idem}, expect=201)
-check("doble cobre bloqueado", "POST", "/api/payments/charge", charge_body, headers={**WEB, "Idempotency-Key": idem}, expect=409)
+replay = check("reintento idempotente", "POST", "/api/payments/charge", charge_body, headers={**WEB, "Idempotency-Key": idem}, expect=201)
+if charge and replay and charge.get("id") != replay.get("id"):
+    FAILURES.append("reintento idempotente devuelve el mismo cobro")
+    print("FAIL reintento idempotente creó otro cobro")
 
 print("\n== Check-in QR ==")
 qr = check("QR fresco", "POST", "/api/access/qr-token", {}, token=TOKEN)
