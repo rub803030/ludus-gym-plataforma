@@ -17,7 +17,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // La app siempre usa el tema oscuro: los iconos del sistema deben ser claros
-        // y el contenido debe respetar barras y teclado (targetSdk 35). imePadding
+        // y el contenido debe respetar barras y teclado (targetSdk 36). imePadding
         // evita que el teclado tape los campos y los botones de los formularios.
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),

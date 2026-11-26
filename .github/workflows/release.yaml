@@ -40,7 +40,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
-        with: { distribution: temurin, java-version: '17' }
+        with: { distribution: temurin, java-version: '21' }
+      - name: Android SDK (API 36)
+        uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;35.0.0 build-tools;36.0.0'
       - uses: gradle/actions/setup-gradle@v3
       - name: Restaurar keystore de release
         env:
@@ -59,4 +63,48 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: ludus-gym-aab
-          path: apps/mobile/app/build/outputs/bundle/release/*.aab
+          path: |
+            apps/mobile/app/build/outputs/bundle/release/*.aab
+            apps/mobile/app/build/outputs/mapping/release/mapping.txt
+
+  play-upload:
+    needs: android
+    runs-on: ubuntu-latest
+    env:
+      PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+      LUDUS_RELEASE_KEYSTORE_B64: ${{ secrets.LUDUS_RELEASE_KEYSTORE_B64 }}
+      LUDUS_RELEASE_STORE_PASSWORD: ${{ secrets.LUDUS_RELEASE_STORE_PASSWORD }}
+      LUDUS_RELEASE_KEY_ALIAS: ${{ secrets.LUDUS_RELEASE_KEY_ALIAS }}
+      LUDUS_RELEASE_KEY_PASSWORD: ${{ secrets.LUDUS_RELEASE_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: ludus-gym-aab
+          path: apps/mobile/app/build/outputs
+      - name: Subir AAB a Play (testing interno, borrador)
+        if: >-
+          env.PLAY_SERVICE_ACCOUNT_JSON != '' &&
+          env.LUDUS_RELEASE_KEYSTORE_B64 != '' &&
+          env.LUDUS_RELEASE_STORE_PASSWORD != '' &&
+          env.LUDUS_RELEASE_KEY_ALIAS != '' &&
+          env.LUDUS_RELEASE_KEY_PASSWORD != ''
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ env.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.ludus.gym
+          releaseFiles: apps/mobile/app/build/outputs/bundle/release/*.aab
+          tracks: internal
+          status: draft
+          releaseName: ${{ github.ref_name }}
+          whatsNewDirectory: distribution/whatsnew
+          mappingFile: apps/mobile/app/build/outputs/mapping/release/mapping.txt
+      - name: Aviso de secretos pendientes
+        if: >-
+          env.PLAY_SERVICE_ACCOUNT_JSON == '' ||
+          env.LUDUS_RELEASE_KEYSTORE_B64 == '' ||
+          env.LUDUS_RELEASE_STORE_PASSWORD == '' ||
+          env.LUDUS_RELEASE_KEY_ALIAS == '' ||
+          env.LUDUS_RELEASE_KEY_PASSWORD == ''
+        run: >-
+          echo "Play upload omitido: faltan secretos de firma o de Play Console."

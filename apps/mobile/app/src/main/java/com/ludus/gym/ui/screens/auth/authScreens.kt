@@ -40,6 +40,7 @@ fun LoginScreen(
     onLoggedIn: (Member) -> Unit,
     onRegister: () -> Unit,
 ) {
+    val context = LocalContext.current
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -106,6 +107,17 @@ fun LoginScreen(
             Text("Crear cuenta")
         }
 
+        TextButton(
+            onClick = {
+                context.startActivity(
+                    Intent(Intent.ACTION_VIEW, Uri.parse("${AppContainer.WEB_APP_URL}/privacidad"))
+                )
+            },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("Política de privacidad")
+        }
+
         if (viewModel.verificationRequired) {
             VerificationPanel(viewModel = viewModel)
         }
@@ -118,6 +130,7 @@ fun RegisterScreen(
     onRegistered: (RegistrationResult) -> Unit,
     onBack: () -> Unit,
 ) {
+    val context = LocalContext.current
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -212,6 +225,16 @@ fun RegisterScreen(
         viewModel.errorMessage?.let { StatusText(it) }
         TextButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
             Text("Volver al inicio de sesión")
+        }
+        TextButton(
+            onClick = {
+                context.startActivity(
+                    Intent(Intent.ACTION_VIEW, Uri.parse("${AppContainer.WEB_APP_URL}/privacidad"))
+                )
+            },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("Política de privacidad")
         }
     }
 }

@@ -21,7 +21,7 @@ LUDUS_RELEASE_KEY_ALIAS=ludus
 LUDUS_RELEASE_KEY_PASSWORD=<password>
 ```
 
-Compilar con JDK 21 portable (el JBR de Android Studio es Java 25 y no es compatible con Gradle 8.7):
+Compilar con JDK 21 portable (el JBR de Android Studio es Java 25 y no es compatible con Gradle 8.13):
 
 ```powershell
 # Apunta JAVA_HOME a un JDK 21 instalado en tu máquina
@@ -42,6 +42,13 @@ El workflow `release.yaml` espera estos secrets del repositorio:
 - `LUDUS_RELEASE_KEY_PASSWORD`
 
 Sin ellos el AAB se genera sin firma y **no es publicable**. El workflow avisa con un warning.
+
+## Preparación para Play Store
+
+El proyecto ya compila con `compileSdk`/`targetSdk` 36, AGP 8.11.1 y Gradle 8.13, e incluye la
+política de privacidad y las notas de versión. La subida a Play está preparada en `release.yaml`
+pero permanece inactiva hasta configurar el service account. El procedimiento completo está en
+`docs/runbooks/play-store.md`.
 
 ## Publicación
 

@@ -30,12 +30,14 @@ val apiBaseUrl = (signingProp("LUDUS_API_BASE_URL")
 
 android {
   namespace = "com.ludus.gym"
-  compileSdk = 35
+  compileSdk = 36
 
   defaultConfig {
     applicationId = "com.ludus.gym"
     minSdk = 26
-    targetSdk = 35
+    // Play exige targetSdk 36 para nuevas apps y actualizaciones desde 2026-08-31.
+    targetSdk = 36
+    // Subir versionCode en cada AAB enviado a Play; versionName es la versión visible.
     versionCode = 4
     versionName = "0.2.0"
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -78,7 +80,7 @@ android {
 }
 
 dependencies {
-  val composeBom = platform("androidx.compose:compose-bom:2024.09.02")
+  val composeBom = platform("androidx.compose:compose-bom:2025.09.01")
   implementation(composeBom)
   androidTestImplementation(composeBom)
 
@@ -96,9 +98,11 @@ dependencies {
   implementation("androidx.security:security-crypto:1.1.0-alpha06")
   // Requerido por Tink al ofuscar con R8 (anotaciones de errorprone).
   implementation("com.google.errorprone:error_prone_annotations:2.28.0")
-  implementation("androidx.room:room-runtime:2.6.1")
-  implementation("androidx.room:room-ktx:2.6.1")
-  ksp("androidx.room:room-compiler:2.6.1")
+  // Room 2.7+ es necesario con KSP2 (Kotlin 2.2); 2.6.1 falla con "unexpected jvm signature V".
+  val roomVersion = "2.7.2"
+  implementation("androidx.room:room-runtime:$roomVersion")
+  implementation("androidx.room:room-ktx:$roomVersion")
+  ksp("androidx.room:room-compiler:$roomVersion")
 
   implementation("com.squareup.retrofit2:retrofit:2.11.0")
   implementation("com.squareup.retrofit2:converter-moshi:2.11.0")
@@ -106,7 +110,8 @@ dependencies {
   implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
   implementation("com.google.zxing:core:3.5.3")
-  val cameraXVersion = "1.3.4"
+  // CameraX 1.5+ elimina el .so alineado a 4 KB que versiones antiguas aportaban; exigido por Play en 64 bits.
+  val cameraXVersion = "1.5.3"
   implementation("androidx.camera:camera-core:$cameraXVersion")
   implementation("androidx.camera:camera-camera2:$cameraXVersion")
   implementation("androidx.camera:camera-view:$cameraXVersion")

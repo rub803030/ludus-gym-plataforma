@@ -42,7 +42,9 @@ pnpm dev
 ```
 
 Android: abrir `apps/mobile` con Android Studio y sincronizar Gradle.
-Para generar el release firmado sigue `docs/runbooks/android-release.md`.
+Para generar el release firmado sigue `docs/runbooks/android-release.md`. El AAB ya apunta a
+API 36; la publicación futura en Play Store, incluida la política de privacidad, está descrita
+en `docs/runbooks/play-store.md`.
 
 iOS: abrir `apps/mobile-ios/LudusGYM.xcodeproj` con Xcode 16 o superior y ejecutar el scheme `LudusGYM`.
 Para firma, versionado y TestFlight sigue `docs/runbooks/ios-release.md`.
@@ -75,7 +77,7 @@ la app permite abrir la web o pegar el código recibido.
 - `docs/DEPLOYMENT.md` — arquitectura, variables y checklist de venta.
 - `docs/CONFIGURATION.md` — configuración centralizada y URL pública.
 - `docs/USER_GUIDE.md` — guía de uso para el gimnasio.
-- `docs/runbooks/` — backups, rotación de secretos, incidentes, despliegue, Android e iOS.
+- `docs/runbooks/` — backups, rotación de secretos, incidentes, despliegue, Android, iOS y Play Store.
 
 ## Soporte y licenciamiento
 
