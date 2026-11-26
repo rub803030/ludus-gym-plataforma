@@ -22,25 +22,10 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Renovar el token de Vercel
-        id: vercel_token
-        env:
-          VERCEL_REFRESH_TOKEN: ${{ secrets.VERCEL_REFRESH_TOKEN }}
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: |
-          respuesta=$(curl -sS -X POST https://api.vercel.com/login/oauth/token \
-            -H 'Content-Type: application/x-www-form-urlencoded' \
-            --data-urlencode 'client_id=cl_HYyOPBNtFMfHhaUn9L4QPfTZz6TP47bp' \
-            --data-urlencode 'grant_type=refresh_token' \
-            --data-urlencode "refresh_token=$VERCEL_REFRESH_TOKEN")
-          token=$(printf '%s' "$respuesta" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const j=JSON.parse(s);process.stdout.write(j.access_token||'')})")
-          if [ -z "$token" ]; then echo "No se pudo renovar el token de Vercel"; exit 1; fi
-          echo "::add-mask::$token"
-          echo "token=$token" >> "$GITHUB_OUTPUT"
       - name: Desplegar la consola web en Vercel
         working-directory: apps/web
         env:
-          VERCEL_TOKEN: ${{ steps.vercel_token.outputs.token }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
           API_UPSTREAM_URL: https://ludus-gym-plataforma-api.fly.dev
