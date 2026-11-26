@@ -116,8 +116,10 @@ Documentacion:
 - docs/FLUJO_OPERATIVO.txt (copia redactada)
 
 
-6. COMMITS DE LA RAMA
----------------------
+6. COMMITS PRINCIPALES ANTERIORES A ESTA GUIA
+---------------------------------------------
+El historial completo incluye commits posteriores de documentacion; consultar
+git log en la rama para verlos.
 117aad1 fix(web): show active gym affiliation QR
 7bed248 fix(mobile): preserve QR errors and retry affiliation scans
 7850c75 fix(api): enforce gym-scoped member affiliations
