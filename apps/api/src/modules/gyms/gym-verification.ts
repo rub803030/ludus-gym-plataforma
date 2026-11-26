@@ -159,38 +159,55 @@ export async function issueGymApproval(gymId: string, gymName: string): Promise<
 }
 
 /** Activa el gimnasio y emite su credencial estática de afiliación. */
-export async function approveGym(token: string) {
+export async function approveGym(token: string, actorId: string) {
+  const tokenHash = hashToken(token)
+  const now = new Date()
   const gym = await prisma.gym.findFirst({
-    where: { approvalTokenHash: hashToken(token), deletedAt: null },
+    where: { approvalTokenHash: tokenHash, deletedAt: null },
   })
-  if (!gym || gym.status === 'ACTIVE') {
+  if (!gym || gym.status !== 'PENDING_VERIFICATION') {
     throw new DomainError('VERIFICATION_TOKEN_INVALID', 'El enlace no es válido o ya fue usado', 400)
   }
-  if (!gym.approvalExpiresAt || gym.approvalExpiresAt < new Date()) {
+  if (!gym.approvalExpiresAt || gym.approvalExpiresAt <= now) {
     throw new DomainError('VERIFICATION_TOKEN_EXPIRED', 'El enlace venció. Solicita uno nuevo', 410)
+  }
+
+  const owner = await prisma.staffUser.findFirst({
+    where: { gymId: gym.id, role: 'OWNER', deletedAt: null },
+    select: { id: true, email: true, fullName: true, emailVerified: true },
+  })
+  if (!owner?.emailVerified) {
+    throw new DomainError('OWNER_EMAIL_NOT_VERIFIED', 'El propietario debe confirmar su correo antes de autorizar el gimnasio', 409)
   }
 
   const publicCode = gym.publicCode ?? (await nextPublicCode())
   const enrollmentQrToken = issueEnrollmentQr(gym.id, publicCode)
-  const activated = await prisma.gym.update({
-    where: { id: gym.id },
+  const activation = await prisma.gym.updateMany({
+    where: {
+      id: gym.id,
+      status: 'PENDING_VERIFICATION',
+      approvalTokenHash: tokenHash,
+      approvalExpiresAt: { gt: now },
+      deletedAt: null,
+    },
     data: {
       status: 'ACTIVE',
       publicCode,
       enrollmentQrToken,
-      approvedAt: new Date(),
+      approvedAt: now,
       approvalTokenHash: null,
       approvalExpiresAt: null,
       verificationTokenHash: null,
       verificationExpiresAt: null,
     },
   })
-  await prisma.staffUser.updateMany({
-    where: { gymId: gym.id, role: 'OWNER' },
-    data: { emailVerified: true, emailVerifiedAt: new Date() },
-  })
+  if (activation.count !== 1) {
+    throw new DomainError('VERIFICATION_TOKEN_INVALID', 'El enlace no es válido o ya fue usado', 409)
+  }
+  const activated = await prisma.gym.findUniqueOrThrow({ where: { id: gym.id } })
   await writeAudit({
     gymId: gym.id,
+    actorId,
     actorRole: 'ADMIN',
     action: 'gym.approve',
     entity: 'gym',
@@ -198,11 +215,7 @@ export async function approveGym(token: string) {
     after: { status: activated.status, publicCode },
   })
 
-  const owner = await prisma.staffUser.findFirst({
-    where: { gymId: gym.id, role: 'OWNER', deletedAt: null },
-    select: { email: true, fullName: true },
-  })
-  const recipient = gym.contactEmail ?? owner?.email
+  const recipient = gym.contactEmail ?? owner.email
   if (recipient) {
     try {
       await sendGymActivatedEmail({

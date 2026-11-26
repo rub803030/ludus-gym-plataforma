@@ -18,7 +18,7 @@ function hashToken(token: string): string {
 /** Gimnasio activo del socio: primero sus membresías, luego el campo legacy. */
 async function memberGymContext(
   memberId: string,
-  legacyGymId: string | null,
+  preferredGymId: string | null = null,
 ): Promise<{ gymId: string; activeGymId: string | null }> {
   const links = await prisma.gymMembership.findMany({
     where: {
@@ -31,7 +31,7 @@ async function memberGymContext(
     select: { gymId: true },
     orderBy: { joinedAt: 'asc' },
   })
-  const chosen = links[0]?.gymId ?? legacyGymId ?? null
+  const chosen = links.find((link) => link.gymId === preferredGymId)?.gymId ?? links[0]?.gymId ?? null
   return { gymId: chosen ?? '', activeGymId: chosen }
 }
 
@@ -57,6 +57,23 @@ export async function issueMemberSession(
 ): Promise<LoginResult> {
   const member = await prisma.member.findFirst({ where: { id: memberId, deletedAt: null } })
   if (!member) throw new DomainError('NOT_FOUND', 'Socio no encontrado', 404)
+  if (member.status === 'SUSPENDED') {
+    throw new DomainError('USER_INACTIVE', 'La cuenta del socio está suspendida', 403)
+  }
+  if (gymId) {
+    const affiliation = await prisma.gymMembership.findFirst({
+      where: {
+        memberId,
+        gymId,
+        isActive: true,
+        status: 'ACTIVE',
+        deletedAt: null,
+        gym: { status: 'ACTIVE', deletedAt: null },
+      },
+      select: { id: true },
+    })
+    if (!affiliation) throw new DomainError('NO_GYM', 'No tienes una afiliación activa en este gimnasio', 403)
+  }
   const input = {
     sub: member.id,
     role: 'MEMBER' as const,
@@ -160,7 +177,7 @@ export async function loginMember(email: string, password: string, deviceId: str
     throw new DomainError('FORBIDDEN', 'Tu membresía está suspendida. Contacta recepción', 403)
   }
 
-  const context = await memberGymContext(member.id, member.gymId)
+  const context = await memberGymContext(member.id)
   return issueMemberSession(member.id, context.gymId, deviceId)
 }
 
@@ -225,13 +242,18 @@ export async function rotateRefresh(refreshToken: string): Promise<LoginResult> 
   if (memberSession.tokenHash !== tokenHash) {
     throw new DomainError('UNAUTHORIZED', 'Reuso de refresh detectado', 401)
   }
-  const member = await prisma.member.findUnique({ where: { id: memberSession.memberId } })
+  const member = await prisma.member.findFirst({
+    where: { id: memberSession.memberId, deletedAt: null },
+  })
   if (!member) throw new DomainError('UNAUTHORIZED', 'Socio no encontrado', 401)
+  if (member.status === 'SUSPENDED') {
+    throw new DomainError('USER_INACTIVE', 'La cuenta del socio está suspendida', 403)
+  }
   if (!member.emailVerified) {
     throw new DomainError('EMAIL_NOT_VERIFIED', 'Verifica tu correo para continuar', 403, { email: member.email })
   }
   await prisma.memberSession.update({ where: { id: memberSession.id }, data: { tokenHash: hashToken('used') } })
-  const context = await memberGymContext(member.id, member.gymId)
+  const context = await memberGymContext(member.id, claims.activeGymId ?? claims.gymId)
   const input = {
     sub: member.id,
     role: 'MEMBER' as const,

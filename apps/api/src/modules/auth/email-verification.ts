@@ -144,6 +144,7 @@ export async function verifyEmailToken(token: string): Promise<{
       data: {
         emailVerified: true,
         emailVerifiedAt: now,
+        ...(member.status === 'PENDING' ? { status: 'ACTIVE' as const } : {}),
         verificationTokenHash: null,
         verificationExpiresAt: null,
       },

@@ -46,6 +46,13 @@ export async function registerAdminRoutes(app: FastifyInstance): Promise<void> {
     if (gym.status === 'ACTIVE') {
       throw new DomainError('CONFLICT', 'Este gimnasio ya está autorizado', 409)
     }
+    const owner = await prisma.staffUser.findFirst({
+      where: { gymId: gym.id, role: 'OWNER', deletedAt: null },
+      select: { emailVerified: true },
+    })
+    if (!owner?.emailVerified) {
+      throw new DomainError('OWNER_EMAIL_NOT_VERIFIED', 'El propietario debe confirmar su correo antes de autorizar el gimnasio', 409)
+    }
     const approval = await issueGymApproval(gym.id, gym.name)
     await writeAudit({
       gymId: gym.id,

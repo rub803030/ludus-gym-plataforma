@@ -14,6 +14,7 @@ import {
   logout,
   rotateRefresh,
 } from './auth-service.js'
+import { activeGymMembershipFilter } from '../../shared/gym-membership.js'
 
 const refreshSchema = z.object({ refreshToken: z.string().min(20) })
 const deviceSchema = z.object({ deviceId: z.string().min(6).max(128).default('ludus-android') })
@@ -105,16 +106,36 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
     const principal = getPrincipal(req)
     const base = { ...principal }
     if (principal.platform === 'mobile') {
-      const member = await prisma.member.findUnique({
-        where: { id: principal.id },
-        include: { memberships: { where: { status: 'ACTIVE' }, take: 1, include: { plan: true } } },
-      })
-      const membership = member?.memberships[0]
+      const gymId = principal.activeGymId ?? principal.gymId
+      const today = new Date()
+      today.setUTCHours(0, 0, 0, 0)
+      const member = await prisma.member.findUnique({ where: { id: principal.id } })
+      const [affiliation, membership] = member && gymId
+        ? await Promise.all([
+            prisma.gymMembership.findFirst({
+              where: { memberId: member.id, ...activeGymMembershipFilter(gymId) },
+              select: { id: true },
+            }),
+            prisma.membership.findFirst({
+              where: {
+                memberId: member.id,
+                status: 'ACTIVE',
+                startDate: { lte: today },
+                endDate: { gte: today },
+                plan: { gymId },
+              },
+              orderBy: { endDate: 'desc' },
+              include: { plan: true },
+            }),
+          ])
+        : [null, null]
       return {
         ...base,
         name: member ? `${member.firstName} ${member.lastName}` : '',
         email: member?.email,
-        membershipStatus: member?.status,
+        membershipStatus: member?.status === 'SUSPENDED'
+          ? 'INACTIVE'
+          : affiliation ? membership?.status ?? 'EXPIRED' : 'INACTIVE',
         membershipEndDate: membership?.endDate?.toISOString() ?? null,
         planName: membership?.plan.name ?? null,
       }

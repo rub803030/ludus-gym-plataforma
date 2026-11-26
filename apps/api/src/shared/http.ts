@@ -3,6 +3,7 @@ import { verifyAccessToken } from './jwt.js'
 import { DomainError } from './errors/domain-error.js'
 import type { Principal } from '@ludus/shared'
 import { needsGymContext, requireGymContext } from './middleware/gym-context.js'
+import { prisma } from './database/prisma.js'
 
 export function tokenFromRequest(req: FastifyRequest): string | null {
   const header = req.headers.authorization
@@ -31,6 +32,17 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply): Pro
   req.principal = authenticate(req)
   const { assertNotRevoked } = await import('./middleware/revocation.js')
   await assertNotRevoked(req)
+  const path = req.url.split('?')[0] ?? ''
+  if (req.principal.role === 'MEMBER' && path !== '/api/auth/logout') {
+    const member = await prisma.member.findFirst({
+      where: { id: req.principal.id, deletedAt: null },
+      select: { status: true },
+    })
+    if (!member) throw new DomainError('UNAUTHORIZED', 'Socio no encontrado', 401)
+    if (member.status === 'SUSPENDED') {
+      throw new DomainError('USER_INACTIVE', 'La cuenta del socio está suspendida', 403)
+    }
+  }
   if (needsGymContext(req)) await requireGymContext(req, reply)
   reply.header('Cache-Control', 'no-store')
 }

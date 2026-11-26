@@ -1,5 +1,6 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 import { enrollmentQrPayloadSchema } from '@ludus/shared'
+import { DomainError } from './errors/domain-error.js'
 
 /**
  * QR estático de afiliación. No expira: sirve solo para vincular una cuenta
@@ -38,13 +39,15 @@ export function verifyEnrollmentQr(token: string): { gymId: string; code: string
   try {
     raw = JSON.parse(Buffer.from(token.trim(), 'base64url').toString('utf8'))
   } catch {
-    throw new Error('Código de gimnasio inválido')
+    throw new DomainError('INVALID_ENROLLMENT_CODE', 'Código de gimnasio inválido', 400)
   }
   const parsed = enrollmentQrPayloadSchema.safeParse(raw)
-  if (!parsed.success) throw new Error('Código de gimnasio inválido')
+  if (!parsed.success) {
+    throw new DomainError('INVALID_ENROLLMENT_CODE', 'Código de gimnasio inválido', 400)
+  }
   const { gymId, code, signature } = parsed.data
   if (!safeEqual(sign(`gym-enroll.${gymId}.${code}`), signature)) {
-    throw new Error('Firma del código de gimnasio inválida')
+    throw new DomainError('INVALID_ENROLLMENT_CODE', 'Firma del código de gimnasio inválida', 400)
   }
   return { gymId, code }
 }

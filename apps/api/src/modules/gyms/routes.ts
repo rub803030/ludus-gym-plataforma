@@ -11,7 +11,7 @@ import { prisma } from '../../shared/database/prisma.js'
 import { DomainError } from '../../shared/errors/domain-error.js'
 import { requireAuth } from '../../shared/http.js'
 import { getPrincipal } from '../../shared/middleware/request-context.js'
-import { requirePermission } from '../../shared/middleware/rbac.js'
+import { requireAdmin, requirePermission } from '../../shared/middleware/rbac.js'
 import { hashPassword } from '../../shared/password.js'
 import { writeAudit } from '../../shared/audit.js'
 import { verificationResponse } from '../auth/email-verification.js'
@@ -107,38 +107,41 @@ export async function registerGymRoutes(app: FastifyInstance): Promise<void> {
     }
 
     const slug = await nextSlug(body.slug ? slugify(body.slug) : slugify(body.gymName))
-    const gym = await prisma.gym.create({
-      data: {
-        name: body.gymName,
-        slug,
-        status: 'PENDING_VERIFICATION',
-        timezone: body.timezone ?? 'America/Mexico_City',
-        capacity: body.capacity ?? 20,
-        currency: body.currency ?? 'MXN',
-        address: body.address,
-        city: body.city,
-        state: body.state,
-        postalCode: body.postalCode,
-        contactEmail: body.contactEmail.toLowerCase(),
-        phone: body.phone,
-        legalRepresentative: body.legalRepresentative,
-        rfc: body.rfc.toUpperCase(),
-        website: body.website,
-        socialMedia: body.socialMedia,
-        description: body.description,
-        branchCount: body.branchCount,
-        openingHours: body.openingHours,
-      },
-    })
-    const owner = await prisma.staffUser.create({
-      data: {
-        gymId: gym.id,
-        email: ownerEmail,
-        passwordHash: hashPassword(body.password),
-        fullName: body.ownerName,
-        role: 'OWNER',
-        emailVerified: false,
-      },
+    const { gym, owner } = await prisma.$transaction(async (tx) => {
+      const gym = await tx.gym.create({
+        data: {
+          name: body.gymName,
+          slug,
+          status: 'PENDING_VERIFICATION',
+          timezone: body.timezone ?? 'America/Mexico_City',
+          capacity: body.capacity ?? 20,
+          currency: body.currency ?? 'MXN',
+          address: body.address,
+          city: body.city,
+          state: body.state,
+          postalCode: body.postalCode,
+          contactEmail: body.contactEmail.toLowerCase(),
+          phone: body.phone,
+          legalRepresentative: body.legalRepresentative,
+          rfc: body.rfc.toUpperCase(),
+          website: body.website,
+          socialMedia: body.socialMedia,
+          description: body.description,
+          branchCount: body.branchCount,
+          openingHours: body.openingHours,
+        },
+      })
+      const owner = await tx.staffUser.create({
+        data: {
+          gymId: gym.id,
+          email: ownerEmail,
+          passwordHash: hashPassword(body.password),
+          fullName: body.ownerName,
+          role: 'OWNER',
+          emailVerified: false,
+        },
+      })
+      return { gym, owner }
     })
     const issued = await issueGymVerification({
       gymId: gym.id,
@@ -173,9 +176,10 @@ export async function registerGymRoutes(app: FastifyInstance): Promise<void> {
   })
 
   /** Autorización global por enlace de un solo uso recibido por correo. */
-  app.post('/api/gyms/approve', async (req) => {
+  app.post('/api/gyms/approve', { preHandler: [requireAuth, requireAdmin] }, async (req) => {
     const { token } = parse(approveGymSchema, req.body)
-    const gym = await approveGym(token)
+    const principal = getPrincipal(req)
+    const gym = await approveGym(token, principal.id)
     return {
       ok: true,
       message: 'Gimnasio autorizado y activo. Ya puedes iniciar sesión en la consola.',

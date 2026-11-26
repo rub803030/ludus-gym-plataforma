@@ -3,13 +3,15 @@ import { prisma } from '../../shared/database/prisma.js'
 import { getPrincipal } from '../../shared/middleware/request-context.js'
 import { requirePermission } from '../../shared/middleware/rbac.js'
 import { requireAuth } from '../../shared/http.js'
+import { activeGymMembershipFilter } from '../../shared/gym-membership.js'
 
 export async function registerAnalyticsRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/reports/summary', { preHandler: [requireAuth, requirePermission('reports:financial')] }, async (req) => {
     const gymId = getPrincipal(req).gymId
     const startOfDay = new Date()
-    startOfDay.setHours(0, 0, 0, 0)
-    const in30Days = new Date(Date.now() + 30 * 86_400_000)
+    startOfDay.setUTCHours(0, 0, 0, 0)
+    const in30Days = new Date(startOfDay)
+    in30Days.setUTCDate(in30Days.getUTCDate() + 30)
 
     const [todayPayments, activeMembers, expiring, occupancy, revenueAll] = await Promise.all([
       prisma.payment.aggregate({
@@ -17,8 +19,40 @@ export async function registerAnalyticsRoutes(app: FastifyInstance): Promise<voi
         _sum: { amountCents: true },
         _count: true,
       }),
-      prisma.member.count({ where: { gymId, status: 'ACTIVE', deletedAt: null } }),
-      prisma.membership.count({ where: { status: 'ACTIVE', endDate: { lte: in30Days } } }),
+      prisma.gymMembership.count({
+        where: {
+          ...activeGymMembershipFilter(gymId),
+          member: {
+            is: {
+              status: { not: 'SUSPENDED' },
+              deletedAt: null,
+              memberships: {
+                some: {
+                  status: 'ACTIVE',
+                  startDate: { lte: startOfDay },
+                  endDate: { gte: startOfDay },
+                  plan: { gymId },
+                },
+              },
+            },
+          },
+        },
+      }),
+      prisma.membership.count({
+        where: {
+          status: 'ACTIVE',
+          startDate: { lte: in30Days },
+          endDate: { gte: startOfDay, lte: in30Days },
+          plan: { gymId },
+          member: {
+            is: {
+              status: { not: 'SUSPENDED' },
+              deletedAt: null,
+              gymMemberships: { some: activeGymMembershipFilter(gymId) },
+            },
+          },
+        },
+      }),
       prisma.accessEvent.count({ where: { gymId, createdAt: { gte: startOfDay }, result: { in: ['GRANTED', 'OFFLINE_GRANTED'] } } }),
       prisma.payment.aggregate({ where: { gymId, status: 'PAID' }, _sum: { amountCents: true } }),
     ])

@@ -13,8 +13,9 @@ import { writeAudit } from '../../shared/audit.js'
 import { issueVerification, verificationResponse } from '../auth/email-verification.js'
 import { issueMemberSession } from '../auth/auth-service.js'
 import { verifyEnrollmentQr } from '../../shared/gym-qr.js'
+import { activeGymMembershipFilter, gymMembershipLinkFilter, memberGymScope } from '../../shared/gym-membership.js'
 
-const updateSchema = createMemberSchema.partial().extend({ status: z.enum(['ACTIVE', 'PENDING', 'EXPIRED', 'SUSPENDED']).optional() })
+const updateSchema = createMemberSchema.partial().extend({ status: z.enum(['ACTIVE', 'SUSPENDED']).optional() })
 
 function parse<T>(schema: z.ZodType<T>, value: unknown): T {
   const result = schema.safeParse(value)
@@ -25,9 +26,15 @@ function parse<T>(schema: z.ZodType<T>, value: unknown): T {
 function toDto(member: {
   id: string; code: string; firstName: string; lastName: string; email: string; phone: string | null
   documentNumber: string | null; status: string; joinedAt: Date; createdAt: Date; emailVerified?: boolean
-  memberships?: Array<{ status: string; endDate: Date | null; plan: { name: string } }>
+  memberships?: Array<{ status: string; startDate: Date | null; endDate: Date | null; plan: { name: string } }>
+  gymMemberships?: Array<{ status: string }>
 }) {
-  const active = member.memberships?.find((m) => m.status === 'ACTIVE')
+  const today = new Date()
+  today.setUTCHours(0, 0, 0, 0)
+  const active = member.memberships?.find(
+    (m) => m.status === 'ACTIVE' && m.startDate !== null && m.endDate !== null &&
+      m.startDate.getTime() <= today.getTime() && m.endDate.getTime() >= today.getTime(),
+  )
   return {
     id: member.id,
     code: member.code,
@@ -38,6 +45,7 @@ function toDto(member: {
     phone: member.phone ?? '',
     document: member.documentNumber ?? '',
     status: member.status,
+    gymMembershipStatus: member.gymMemberships?.[0]?.status ?? null,
     emailVerified: member.emailVerified ?? false,
     joinedAt: member.joinedAt.toISOString(),
     createdAt: member.createdAt.toISOString(),
@@ -100,14 +108,20 @@ export async function registerMemberRoutes(app: FastifyInstance): Promise<void> 
     const rawCode = body.code.trim()
     let gymId: string
 
+    let decoded: ReturnType<typeof verifyEnrollmentQr> | null = null
     try {
-      const decoded = verifyEnrollmentQr(rawCode)
+      decoded = verifyEnrollmentQr(rawCode)
+    } catch (error) {
+      if (!(error instanceof DomainError) || error.code !== 'INVALID_ENROLLMENT_CODE') throw error
+    }
+
+    if (decoded) {
       const signedGym = await prisma.gym.findFirst({
         where: { id: decoded.gymId, publicCode: decoded.code, deletedAt: null },
       })
-      if (!signedGym) throw new Error('QR de gimnasio no vigente')
+      if (!signedGym) throw new DomainError('NOT_FOUND', 'No encontramos ese gimnasio. Revisa el código', 404)
       gymId = decoded.gymId
-    } catch {
+    } else {
       const byCode = await prisma.gym.findFirst({
         where: { publicCode: rawCode.toUpperCase(), deletedAt: null },
       })
@@ -123,19 +137,24 @@ export async function registerMemberRoutes(app: FastifyInstance): Promise<void> 
 
     const member = await prisma.member.findUnique({ where: { id: principal.id } })
     if (!member) throw new DomainError('NOT_FOUND', 'Socio no encontrado', 404)
+    if (member.status === 'SUSPENDED') {
+      throw new DomainError('USER_INACTIVE', 'La cuenta del socio está suspendida', 403)
+    }
     const key = { gymId, memberId: member.id }
     const previous = await prisma.gymMembership.findUnique({ where: { gymId_memberId: key } })
-    if (previous?.status === 'SUSPENDED') {
+    if (previous?.deletedAt === null && previous.status === 'SUSPENDED') {
       throw new DomainError('CONFLICT', 'Tu membresía en este gimnasio está suspendida', 409)
     }
-    await prisma.gymMembership.upsert({
-      where: { gymId_memberId: key },
-      create: { gymId, memberId: member.id, status: 'ACTIVE', isActive: true, joinedAt: new Date() },
-      update: { status: 'ACTIVE', isActive: true, deletedAt: null },
+    await prisma.$transaction(async (tx) => {
+      await tx.gymMembership.upsert({
+        where: { gymId_memberId: key },
+        create: { gymId, memberId: member.id, status: 'ACTIVE', isActive: true, joinedAt: new Date() },
+        update: { status: 'ACTIVE', isActive: true, deletedAt: null },
+      })
+      if (!member.gymId) {
+        await tx.member.update({ where: { id: member.id }, data: { gymId } })
+      }
     })
-    if (!member.gymId) {
-      await prisma.member.update({ where: { id: member.id }, data: { gymId } })
-    }
     const tokens = await issueMemberSession(member.id, gymId, 'ludus-android')
     return {
       gym: { id: gym.id, name: gym.name, publicCode: gym.publicCode, status: gym.status },
@@ -198,8 +217,10 @@ export async function registerMemberRoutes(app: FastifyInstance): Promise<void> 
   app.get('/api/members', { preHandler: [requireAuth, requirePermission('members:read')] }, async (req) => {
     const { page, limit, search } = parsePagination(req.query as Record<string, unknown>)
     const principal = getPrincipal(req)
+    const today = new Date()
+    today.setUTCHours(0, 0, 0, 0)
     const where = {
-      gymId: principal.gymId,
+      ...memberGymScope(principal.gymId),
       deletedAt: null,
       ...(search
         ? {
@@ -215,7 +236,24 @@ export async function registerMemberRoutes(app: FastifyInstance): Promise<void> 
     const [items, total] = await Promise.all([
       prisma.member.findMany({
         where,
-        include: { memberships: { where: { status: 'ACTIVE' }, take: 1, include: { plan: true } } },
+        include: {
+          gymMemberships: {
+            where: gymMembershipLinkFilter(principal.gymId),
+            take: 1,
+            select: { status: true },
+          },
+          memberships: {
+            where: {
+              status: 'ACTIVE',
+              startDate: { lte: today },
+              endDate: { gte: today },
+              plan: { gymId: principal.gymId },
+            },
+            orderBy: { endDate: 'desc' },
+            take: 1,
+            include: { plan: true },
+          },
+        },
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * limit,
         take: limit,
@@ -228,29 +266,56 @@ export async function registerMemberRoutes(app: FastifyInstance): Promise<void> 
   app.get('/api/members/me', { preHandler: requireAuth }, async (req) => {
     const principal = getPrincipal(req)
     if (principal.role !== 'MEMBER') throw new DomainError('FORBIDDEN', 'Solo socios', 403)
+    const gymId = principal.activeGymId ?? principal.gymId
     const member = await prisma.member.findUnique({
       where: { id: principal.id },
-      include: {
-        memberships: { where: { status: 'ACTIVE' }, take: 1, include: { plan: true } },
-        nutrition: { where: { deletedAt: null }, take: 1, include: { meals: true } },
-      },
     })
     if (!member) throw new DomainError('NOT_FOUND', 'Socio no encontrado', 404)
-    const membership = member.memberships[0]
+    const today = new Date()
+    today.setUTCHours(0, 0, 0, 0)
+    const [gymMemberships, memberships, nutritionPlans] = gymId
+      ? await Promise.all([
+          prisma.gymMembership.findMany({
+            where: { memberId: member.id, ...gymMembershipLinkFilter(gymId) },
+            take: 1,
+            select: { status: true },
+          }),
+          prisma.membership.findMany({
+            where: {
+              memberId: member.id,
+              status: 'ACTIVE',
+              startDate: { lte: today },
+              endDate: { gte: today },
+              plan: { gymId },
+            },
+            orderBy: { endDate: 'desc' },
+            take: 1,
+            include: { plan: true },
+          }),
+          prisma.nutritionPlan.findMany({
+            where: { memberId: member.id, gymId, deletedAt: null },
+            take: 1,
+            include: { meals: true },
+          }),
+        ])
+      : [[], [], []]
+    const memberView = { ...member, gymMemberships, memberships }
+    const membership = memberships[0]
     const daysRemaining = membership?.endDate
       ? Math.max(0, Math.ceil((membership.endDate.getTime() - Date.now()) / 86_400_000))
       : 0
     return {
-      ...toDto(member),
+      ...toDto(memberView),
+      membershipStatus: membership ? 'ACTIVE' : 'EXPIRED',
       daysRemaining,
-      nutritionPlan: member.nutrition[0]
+      nutritionPlan: nutritionPlans[0]
         ? {
-            title: member.nutrition[0].title,
-            calories: member.nutrition[0].calories,
-            proteinG: member.nutrition[0].proteinG,
-            carbsG: member.nutrition[0].carbsG,
-            fatG: member.nutrition[0].fatG,
-            meals: member.nutrition[0].meals,
+            title: nutritionPlans[0].title,
+            calories: nutritionPlans[0].calories,
+            proteinG: nutritionPlans[0].proteinG,
+            carbsG: nutritionPlans[0].carbsG,
+            fatG: nutritionPlans[0].fatG,
+            meals: nutritionPlans[0].meals,
           }
         : null,
     }
@@ -258,7 +323,8 @@ export async function registerMemberRoutes(app: FastifyInstance): Promise<void> 
 
   app.get('/api/members/:id/medical', { preHandler: [requireAuth, requirePermission('members:medical:read')] }, async (req) => {
     const { id } = req.params as { id: string }
-    const member = await prisma.member.findFirst({ where: { id, gymId: getPrincipal(req).gymId } })
+    const gymId = getPrincipal(req).gymId
+    const member = await prisma.member.findFirst({ where: { id, ...memberGymScope(gymId) } })
     if (!member) throw new DomainError('NOT_FOUND', 'Socio no encontrado', 404)
     return {
       medicalNotes: decryptOptional(member.medicalNotesCipher),
@@ -269,8 +335,14 @@ export async function registerMemberRoutes(app: FastifyInstance): Promise<void> 
 
   app.get('/api/members/:id/payments', { preHandler: [requireAuth, requirePermission('members:read')] }, async (req) => {
     const { id } = req.params as { id: string }
+    const gymId = getPrincipal(req).gymId
+    const member = await prisma.member.findFirst({
+      where: { id, ...memberGymScope(gymId), deletedAt: null },
+      select: { id: true },
+    })
+    if (!member) throw new DomainError('NOT_FOUND', 'Socio no encontrado', 404)
     const payments = await prisma.payment.findMany({
-      where: { memberId: id, gymId: getPrincipal(req).gymId },
+      where: { memberId: id, gymId },
       orderBy: { createdAt: 'desc' },
       take: 50,
     })
@@ -286,11 +358,21 @@ export async function registerMemberRoutes(app: FastifyInstance): Promise<void> 
 
   app.get('/api/members/:id', { preHandler: [requireAuth, requirePermission('members:read')] }, async (req) => {
     const { id } = req.params as { id: string }
+    const gymId = getPrincipal(req).gymId
     const member = await prisma.member.findFirst({
-      where: { id, gymId: getPrincipal(req).gymId, deletedAt: null },
+      where: { id, ...memberGymScope(gymId), deletedAt: null },
       include: {
-        memberships: { include: { plan: true }, orderBy: { createdAt: 'desc' } },
-        payments: { orderBy: { createdAt: 'desc' }, take: 20 },
+        gymMemberships: {
+          where: gymMembershipLinkFilter(gymId),
+          take: 1,
+          select: { status: true },
+        },
+        memberships: {
+          where: { plan: { gymId } },
+          include: { plan: true },
+          orderBy: { createdAt: 'desc' },
+        },
+        payments: { where: { gymId }, orderBy: { createdAt: 'desc' }, take: 20 },
       },
     })
     if (!member) throw new DomainError('NOT_FOUND', 'Socio no encontrado', 404)
@@ -323,25 +405,44 @@ export async function registerMemberRoutes(app: FastifyInstance): Promise<void> 
   app.post('/api/members', { preHandler: [requireAuth, requirePermission('members:write')] }, async (req, reply) => {
     const body = parse(createMemberSchema, req.body)
     const principal = getPrincipal(req)
-    const count = await prisma.member.count({ where: { gymId: principal.gymId } })
-    const code = `LUD-${String(count + 1).padStart(6, '0')}`
+    const code = await nextMemberCode()
     const temporaryPassword = generateTemporaryPassword()
-    const member = await prisma.member.create({
-      data: {
-        gymId: principal.gymId,
-        code,
-        firstName: body.firstName,
-        lastName: body.lastName,
-        email: body.email.toLowerCase(),
-        phone: body.phone,
-        documentNumber: body.document,
-        birthDate: new Date(body.birthDate),
-        medicalNotesCipher: encryptOptional(body.medicalNotes),
-        allergiesCipher: encryptOptional(body.allergies),
-        conditionsCipher: encryptOptional(body.conditions),
-        passwordHash: hashPassword(temporaryPassword),
-        status: 'PENDING',
-      },
+    const member = await prisma.$transaction(async (tx) => {
+      const created = await tx.member.create({
+        data: {
+          gymId: principal.gymId,
+          code,
+          firstName: body.firstName,
+          lastName: body.lastName,
+          email: body.email.toLowerCase(),
+          phone: body.phone,
+          documentNumber: body.document,
+          birthDate: new Date(body.birthDate),
+          medicalNotesCipher: encryptOptional(body.medicalNotes),
+          allergiesCipher: encryptOptional(body.allergies),
+          conditionsCipher: encryptOptional(body.conditions),
+          passwordHash: hashPassword(temporaryPassword),
+          status: 'PENDING',
+        },
+      })
+      await tx.gymMembership.create({
+        data: {
+          gymId: principal.gymId,
+          memberId: created.id,
+          status: 'ACTIVE',
+          isActive: true,
+        },
+      })
+      return tx.member.findUniqueOrThrow({
+        where: { id: created.id },
+        include: {
+          gymMemberships: {
+            where: activeGymMembershipFilter(principal.gymId),
+            take: 1,
+            select: { status: true },
+          },
+        },
+      })
     })
     await issueVerification({
       kind: 'member',
@@ -367,26 +468,48 @@ export async function registerMemberRoutes(app: FastifyInstance): Promise<void> 
     const { id } = req.params as { id: string }
     const body = parse(updateSchema, req.body)
     const principal = getPrincipal(req)
-    const before = await prisma.member.findFirst({ where: { id, gymId: principal.gymId } })
-    if (!before) throw new DomainError('NOT_FOUND', 'Socio no encontrado', 404)
-    const emailChanged = Boolean(body.email && body.email.toLowerCase() !== before.email.toLowerCase())
-    const member = await prisma.member.update({
-      where: { id },
-      data: {
-        firstName: body.firstName,
-        lastName: body.lastName,
-        email: body.email?.toLowerCase(),
-        phone: body.phone,
-        documentNumber: body.document,
-        status: body.status,
-        medicalNotesCipher: body.medicalNotes !== undefined ? encryptOptional(body.medicalNotes) : undefined,
-        allergiesCipher: body.allergies !== undefined ? encryptOptional(body.allergies) : undefined,
-        conditionsCipher: body.conditions !== undefined ? encryptOptional(body.conditions) : undefined,
-        ...(emailChanged
-          ? { emailVerified: false, emailVerifiedAt: null, verificationTokenHash: null, verificationExpiresAt: null }
-          : {}),
-      },
+    const result = await prisma.$transaction(async (tx) => {
+      const before = await tx.member.findFirst({
+        where: { id, ...memberGymScope(principal.gymId), deletedAt: null },
+      })
+      if (!before) throw new DomainError('NOT_FOUND', 'Socio no encontrado', 404)
+      const emailChanged = Boolean(body.email && body.email.toLowerCase() !== before.email.toLowerCase())
+      if (body.status) {
+        await tx.gymMembership.update({
+          where: { gymId_memberId: { gymId: principal.gymId, memberId: id } },
+          data: {
+            status: body.status,
+            isActive: body.status === 'ACTIVE',
+            deletedAt: null,
+          },
+        })
+      }
+      const member = await tx.member.update({
+        where: { id },
+        data: {
+          firstName: body.firstName,
+          lastName: body.lastName,
+          email: body.email?.toLowerCase(),
+          phone: body.phone,
+          documentNumber: body.document,
+          medicalNotesCipher: body.medicalNotes !== undefined ? encryptOptional(body.medicalNotes) : undefined,
+          allergiesCipher: body.allergies !== undefined ? encryptOptional(body.allergies) : undefined,
+          conditionsCipher: body.conditions !== undefined ? encryptOptional(body.conditions) : undefined,
+          ...(emailChanged
+            ? { emailVerified: false, emailVerifiedAt: null, verificationTokenHash: null, verificationExpiresAt: null }
+            : {}),
+        },
+        include: {
+          gymMemberships: {
+            where: activeGymMembershipFilter(principal.gymId),
+            take: 1,
+            select: { status: true },
+          },
+        },
+      })
+      return { before, member, emailChanged }
     })
+    const { before, member, emailChanged } = result
     if (emailChanged) {
       await issueVerification({
         kind: 'member',
@@ -403,8 +526,8 @@ export async function registerMemberRoutes(app: FastifyInstance): Promise<void> 
       action: 'member.update',
       entity: 'member',
       entityId: id,
-      before: { status: before.status, email: before.email },
-      after: { status: member.status, email: member.email },
+      before: { accountStatus: before.status, email: before.email },
+      after: { accountStatus: member.status, gymMembershipStatus: body.status, email: member.email },
     })
     return toDto(member)
   })

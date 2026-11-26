@@ -5,6 +5,7 @@ import { DomainError } from '../../shared/errors/domain-error.js'
 import { getPrincipal } from '../../shared/middleware/request-context.js'
 import { requirePermission } from '../../shared/middleware/rbac.js'
 import { requireAuth } from '../../shared/http.js'
+import { activeMemberGymScope, memberGymScope } from '../../shared/gym-membership.js'
 
 const routineSchema = z.object({
   memberId: z.string().uuid(),
@@ -77,8 +78,21 @@ export async function registerWorkoutRoutes(app: FastifyInstance): Promise<void>
         ? String((req.query as Record<string, unknown>)['memberId'])
         : null
     if (!memberId) throw new DomainError('VALIDATION_ERROR', 'memberId requerido', 400)
+    const gymId = principal.activeGymId ?? principal.gymId
+    if (principal.role === 'MEMBER' && gymId) {
+      const affiliation = await prisma.member.findFirst({
+        where: { id: principal.id, deletedAt: null, ...activeMemberGymScope(gymId) },
+        select: { id: true },
+      })
+      if (!affiliation) throw new DomainError('NO_GYM', 'No tienes una afiliación activa en este gimnasio', 403)
+    }
     const routines = await prisma.routine.findMany({
-      where: { memberId, deletedAt: null, ...(principal.role !== 'MEMBER' ? { gymId: principal.gymId } : {}) },
+      where: {
+        memberId,
+        gymId,
+        deletedAt: null,
+        ...(principal.role !== 'MEMBER' ? { member: { is: memberGymScope(gymId) } } : {}),
+      },
       include: { exercises: { orderBy: { sortOrder: 'asc' } } },
       orderBy: { weekStart: 'desc' },
       take: 10,
@@ -102,6 +116,11 @@ export async function registerWorkoutRoutes(app: FastifyInstance): Promise<void>
   app.post('/api/routines', { preHandler: [requireAuth, requirePermission('routines:assign')] }, async (req, reply) => {
     const body = routineSchema.parse(req.body)
     const principal = getPrincipal(req)
+    const member = await prisma.member.findFirst({
+      where: { id: body.memberId, deletedAt: null, ...activeMemberGymScope(principal.gymId) },
+      select: { id: true },
+    })
+    if (!member) throw new DomainError('NOT_FOUND', 'Socio sin afiliación activa en este gimnasio', 404)
     const routine = await prisma.routine.create({
       data: {
         gymId: principal.gymId,
@@ -129,6 +148,15 @@ export async function registerWorkoutRoutes(app: FastifyInstance): Promise<void>
   app.post('/api/workout-logs', { preHandler: requireAuth }, async (req, reply) => {
     const body = logSchema.parse(req.body)
     const principal = getPrincipal(req)
+    const gymId = principal.activeGymId ?? principal.gymId
+    const exercise = await prisma.routineExercise.findFirst({
+      where: {
+        id: body.exerciseId,
+        routine: { is: { memberId: principal.id, gymId, deletedAt: null } },
+      },
+      select: { id: true },
+    })
+    if (!exercise) throw new DomainError('NOT_FOUND', 'Ejercicio asignado no encontrado', 404)
     const log = await prisma.workoutLog.create({
       data: {
         memberId: principal.id,
@@ -145,8 +173,18 @@ export async function registerWorkoutRoutes(app: FastifyInstance): Promise<void>
   })
 
   app.get('/api/workout-logs', { preHandler: requireAuth }, async (req) => {
+    const principal = getPrincipal(req)
+    const gymId = principal.activeGymId ?? principal.gymId
+    const affiliation = await prisma.member.findFirst({
+      where: { id: principal.id, deletedAt: null, ...activeMemberGymScope(gymId) },
+      select: { id: true },
+    })
+    if (!affiliation) throw new DomainError('NO_GYM', 'No tienes una afiliación activa en este gimnasio', 403)
     const logs = await prisma.workoutLog.findMany({
-      where: { memberId: getPrincipal(req).id },
+      where: {
+        memberId: principal.id,
+        exercise: { is: { routine: { is: { gymId } } } },
+      },
       orderBy: { performedAt: 'desc' },
       take: 100,
     })
@@ -166,8 +204,18 @@ export async function registerWorkoutRoutes(app: FastifyInstance): Promise<void>
       ? principal.id
       : String((req.query as Record<string, unknown>)['memberId'] ?? '')
     if (!memberId) throw new DomainError('VALIDATION_ERROR', 'memberId requerido', 400)
+    const gymId = principal.activeGymId ?? principal.gymId
+    const member = await prisma.member.findFirst({
+      where: {
+        id: memberId,
+        deletedAt: null,
+        ...(principal.role === 'MEMBER' ? activeMemberGymScope(gymId) : memberGymScope(gymId)),
+      },
+      select: { id: true },
+    })
+    if (!member) throw new DomainError('NOT_FOUND', 'Socio no afiliado a este gimnasio', 404)
     const plans = await prisma.nutritionPlan.findMany({
-      where: { memberId, deletedAt: null },
+      where: { memberId, gymId, deletedAt: null },
       include: { meals: { orderBy: { sortOrder: 'asc' } } },
       orderBy: { createdAt: 'desc' },
       take: 5,
@@ -194,6 +242,11 @@ export async function registerWorkoutRoutes(app: FastifyInstance): Promise<void>
   app.post('/api/nutrition-plans', { preHandler: [requireAuth, requirePermission('nutrition:assign')] }, async (req, reply) => {
     const body = nutritionSchema.parse(req.body)
     const principal = getPrincipal(req)
+    const member = await prisma.member.findFirst({
+      where: { id: body.memberId, deletedAt: null, ...activeMemberGymScope(principal.gymId) },
+      select: { id: true },
+    })
+    if (!member) throw new DomainError('NOT_FOUND', 'Socio sin afiliación activa en este gimnasio', 404)
     const plan = await prisma.nutritionPlan.create({
       data: {
         gymId: principal.gymId,
@@ -230,7 +283,14 @@ export async function registerWorkoutRoutes(app: FastifyInstance): Promise<void>
       take: 30,
     })
     const mine = principal.role === 'MEMBER'
-      ? await prisma.classBooking.findMany({ where: { memberId: principal.id, status: 'BOOKED' }, select: { classId: true } })
+      ? await prisma.classBooking.findMany({
+          where: {
+            memberId: principal.id,
+            status: 'BOOKED',
+            klass: { is: { gymId: principal.gymId } },
+          },
+          select: { classId: true },
+        })
       : []
     const bookedIds = new Set(mine.map((b) => b.classId))
     return classes.map((c) => ({
@@ -250,6 +310,11 @@ export async function registerWorkoutRoutes(app: FastifyInstance): Promise<void>
     if (principal.role !== 'MEMBER') throw new DomainError('FORBIDDEN', 'Solo socios', 403)
     const gymClass = await prisma.gymClass.findFirst({ where: { id, gymId: principal.gymId } })
     if (!gymClass) throw new DomainError('NOT_FOUND', 'Clase no encontrada', 404)
+    const member = await prisma.member.findFirst({
+      where: { id: principal.id, deletedAt: null, ...activeMemberGymScope(principal.gymId) },
+      select: { id: true },
+    })
+    if (!member) throw new DomainError('NO_GYM', 'No tienes una afiliación activa en este gimnasio', 403)
     const count = await prisma.classBooking.count({ where: { classId: id, status: 'BOOKED' } })
     if (count >= gymClass.capacity) throw new DomainError('CONFLICT', 'La clase está llena', 409)
     await prisma.classBooking.upsert({
@@ -264,7 +329,7 @@ export async function registerWorkoutRoutes(app: FastifyInstance): Promise<void>
     const { id } = req.params as { id: string }
     const principal = getPrincipal(req)
     await prisma.classBooking.updateMany({
-      where: { classId: id, memberId: principal.id },
+      where: { classId: id, memberId: principal.id, klass: { is: { gymId: principal.gymId } } },
       data: { status: 'CANCELLED' },
     })
     return { ok: true, booked: false }
