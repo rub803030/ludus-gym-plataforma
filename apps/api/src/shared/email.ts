@@ -139,36 +139,40 @@ export async function sendVerificationEmail(input: VerificationEmailInput): Prom
 
   if (accounts.length > 0) {
     const day = todayUtc()
-    const account = await pickAccount(accounts, day, env.SMTP_DAILY_LIMIT)
+    let lastRejection: Error | undefined
 
-    if (!account) {
-      if (env.RESEND_API_KEY && !usesTestSender) {
-        return sendViaResend(env, input, input.to, content)
+    for (let attempt = 0; attempt < accounts.length; attempt += 1) {
+      const account = await pickAccount(accounts, day, env.SMTP_DAILY_LIMIT)
+      if (!account) break
+
+      try {
+        const transporter = nodemailer.createTransport({
+          host: account.host ?? (env.SMTP_HOST.trim() || 'smtp.gmail.com'),
+          port: account.port ?? env.SMTP_PORT,
+          secure: account.secure ?? env.SMTP_SECURE,
+          auth: { user: account.user, pass: account.password },
+        })
+        const info = await transporter.sendMail({
+          from: account.from ?? `Ludus GYM <${account.user}>`,
+          to: input.to,
+          subject: content.subject,
+          text: content.text,
+          html: content.html,
+        })
+        cooldownUntil.delete(account.user)
+        return { id: info.messageId, skipped: false }
+      } catch {
+        cooldownUntil.set(account.user, Date.now() + COOLDOWN_MS)
+        await releaseSlot(account.user, day).catch(() => undefined)
+        lastRejection = new Error(`SMTP rechazó el envío con la cuenta ${account.user}; se usará otra en el próximo intento`)
       }
-      throw new Error('Todas las cuentas SMTP alcanzaron el cupo diario; no se pudo enviar la verificación')
     }
 
-    try {
-      const transporter = nodemailer.createTransport({
-        host: account.host ?? (env.SMTP_HOST.trim() || 'smtp.gmail.com'),
-        port: account.port ?? env.SMTP_PORT,
-        secure: account.secure ?? env.SMTP_SECURE,
-        auth: { user: account.user, pass: account.password },
-      })
-      const info = await transporter.sendMail({
-        from: account.from ?? `Ludus GYM <${account.user}>`,
-        to: input.to,
-        subject: content.subject,
-        text: content.text,
-        html: content.html,
-      })
-      cooldownUntil.delete(account.user)
-      return { id: info.messageId, skipped: false }
-    } catch {
-      cooldownUntil.set(account.user, Date.now() + COOLDOWN_MS)
-      await releaseSlot(account.user, day).catch(() => undefined)
-      throw new Error(`SMTP rechazó el envío con la cuenta ${account.user}; se usará otra en el próximo intento`)
+    if (env.RESEND_API_KEY && !usesTestSender) {
+      return sendViaResend(env, input, input.to, content)
     }
+    if (lastRejection) throw lastRejection
+    throw new Error('Todas las cuentas SMTP alcanzaron el cupo diario; no se pudo enviar la verificación')
   }
 
   if (!env.RESEND_API_KEY) {

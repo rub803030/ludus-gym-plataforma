@@ -125,19 +125,28 @@ describe('entrega por SMTP propio', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('devuelve el cupo y evita la cuenta fallida en el siguiente intento', async () => {
+  it('devuelve el cupo y rota a otra cuenta en el mismo intento si SMTP rechaza', async () => {
     configure()
-    vi.mocked(getSmtpAccounts).mockReturnValue(rotating(['cuenta1@gmail.com', 'cuenta2@gmail.com']))
+    vi.mocked(getSmtpAccounts).mockReturnValue(rotating(['rechazo1@gmail.com', 'rechazo2@gmail.com']))
     sendMail.mockRejectedValueOnce(new Error('SMTP 535'))
 
-    await expect(sendVerificationEmail(input)).rejects.toThrow('SMTP rechazó el envío')
+    await expect(sendVerificationEmail(input)).resolves.toEqual({ id: 'smtp-message-id', skipped: false })
+    expect(sendMail).toHaveBeenCalledTimes(2)
     expect(updateMany).toHaveBeenCalledWith({
-      where: { account: 'cuenta1@gmail.com', day: expect.any(Date), sentCount: { gt: 0 } },
+      where: { account: 'rechazo1@gmail.com', day: expect.any(Date), sentCount: { gt: 0 } },
       data: { sentCount: { decrement: 1 } },
     })
-
-    await expect(sendVerificationEmail(input)).resolves.toEqual({ id: 'smtp-message-id', skipped: false })
     const options = createTransport.mock.calls[1]?.[0] as { auth: { user: string } }
-    expect(options.auth.user).toBe('cuenta2@gmail.com')
+    expect(options.auth.user).toBe('rechazo2@gmail.com')
+  })
+
+  it('falla con claridad si todas las cuentas son rechazadas', async () => {
+    configure({ EMAIL_FROM: 'Ludus GYM <onboarding@resend.dev>' })
+    vi.mocked(getSmtpAccounts).mockReturnValue(rotating(['todo1@gmail.com', 'todo2@gmail.com']))
+    sendMail.mockRejectedValue(new Error('SMTP 535'))
+
+    await expect(sendVerificationEmail(input)).rejects.toThrow('SMTP rechazó el envío')
+    expect(sendMail).toHaveBeenCalledTimes(2)
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 })
