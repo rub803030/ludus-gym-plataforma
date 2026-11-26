@@ -15,7 +15,7 @@ export const smtpAccountSchema = z.object({
 
 export type SmtpAccount = z.infer<typeof smtpAccountSchema>
 
-const smtpAccountsSchema = z.array(smtpAccountSchema).min(1).max(10)
+const smtpAccountsSchema = z.array(smtpAccountSchema).min(1)
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -43,8 +43,9 @@ const envSchema = z.object({
   SMTP_SECURE: z.enum(['true', 'false']).default('false').transform((value) => value === 'true'),
   SMTP_USER: z.string().default(''),
   SMTP_PASSWORD: z.string().default(''),
-  // Rotación opcional: un solo secreto JSON con hasta 10 cuentas {user,password,from?}.
+  // Rotación opcional: un solo secreto JSON con cuentas {user,password,from?}.
   SMTP_ACCOUNTS: z.string().default(''),
+  SMTP_MAX_ACCOUNTS: z.coerce.number().int().min(1).max(100).default(10),
   SMTP_DAILY_LIMIT: z.coerce.number().int().positive().default(300),
   // Solo desarrollo: onboarding@resend.dev entrega únicamente al correo dueño de la cuenta.
   RESEND_TEST_RECIPIENT: z.string().email().optional(),
@@ -72,12 +73,20 @@ const envSchema = z.object({
     try {
       const parsedAccounts = smtpAccountsSchema.safeParse(JSON.parse(value.SMTP_ACCOUNTS))
       if (parsedAccounts.success) {
-        rotatingAccounts = parsedAccounts.data
+        if (parsedAccounts.data.length > value.SMTP_MAX_ACCOUNTS) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['SMTP_ACCOUNTS'],
+            message: `SMTP_ACCOUNTS supera el límite de ${value.SMTP_MAX_ACCOUNTS} cuentas; sube SMTP_MAX_ACCOUNTS`,
+          })
+        } else {
+          rotatingAccounts = parsedAccounts.data
+        }
       } else {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ['SMTP_ACCOUNTS'],
-          message: 'SMTP_ACCOUNTS debe ser un JSON con 1 a 10 cuentas {user, password, from?}',
+          message: 'SMTP_ACCOUNTS debe ser un JSON con cuentas {user, password, from?}',
         })
       }
     } catch {
