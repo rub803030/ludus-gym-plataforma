@@ -62,14 +62,23 @@ export function VerifyGym() {
 
         {state === 'success' && result ? (
           <div role="status" className="space-y-4 border-l-2 border-volt bg-surface px-4 py-5">
-            <p className="text-sm font-semibold uppercase tracking-[0.12em] text-volt">Correo confirmado</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.12em] text-volt">
+              {result.gym.status === 'ACTIVE' ? 'Gimnasio activo' : 'Correo del propietario confirmado'}
+            </p>
             <p className="text-sm leading-relaxed text-ink">{result.gym.name}</p>
-            {result.gym.publicCode ? (
+            <p className="text-sm leading-relaxed text-muted">
+              {result.gym.status === 'PENDING_VERIFICATION'
+                ? 'La verificación del correo está completa. El gimnasio todavía espera la autorización de un administrador y aún no está activo.'
+                : result.gym.status === 'ACTIVE'
+                  ? 'La cuenta del propietario y el gimnasio están activos.'
+                  : 'El correo está confirmado, pero el gimnasio se encuentra suspendido.'}
+            </p>
+            {result.gym.status === 'ACTIVE' && result.gym.publicCode ? (
               <p className="tabular text-xs leading-relaxed text-muted">
-                ID público: <span className="font-semibold text-ink">{result.gym.publicCode}</span>
+                Código público: <span className="font-semibold text-ink">{result.gym.publicCode}</span>
               </p>
             ) : null}
-            <p className="text-sm leading-relaxed text-muted">{message}</p>
+            {message ? <p className="text-xs leading-relaxed text-muted">{message}</p> : null}
             <Link
               href="/login"
               className="inline-flex min-h-12 items-center justify-center bg-volt px-5 py-3 text-[11px] font-bold uppercase tracking-[0.16em] text-canvas"

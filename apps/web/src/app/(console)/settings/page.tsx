@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { QRCodeCanvas } from 'qrcode.react'
 import { api, clearSession, getErrorMessage, hydrateSession } from '@/lib/api-client'
 import { roleLabel } from '@/lib/format'
@@ -60,6 +60,8 @@ export default function SettingsPage() {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [qrFeedback, setQrFeedback] = useState<string | null>(null)
+  const enrollmentQrRef = useRef<HTMLCanvasElement | null>(null)
 
   const loadGym = useCallback(async () => {
     setLoadingGym(true)
@@ -154,9 +156,32 @@ export default function SettingsPage() {
     router.refresh()
   }
 
+  async function copyPublicCode() {
+    if (!gym?.publicCode) return
+    try {
+      await navigator.clipboard.writeText(gym.publicCode)
+      setQrFeedback('Código público copiado.')
+    } catch {
+      setQrFeedback('No se pudo copiar el código público desde este navegador.')
+    }
+  }
+
+  function downloadEnrollmentQr() {
+    const canvas = enrollmentQrRef.current
+    if (!canvas || !gym?.publicCode) {
+      setQrFeedback('No se pudo preparar la descarga del QR.')
+      return
+    }
+    const link = document.createElement('a')
+    link.href = canvas.toDataURL('image/png')
+    link.download = `ludus-gym-${gym.publicCode.toLowerCase()}.png`
+    link.click()
+    setQrFeedback('QR de afiliación descargado.')
+  }
+
   const principal = session?.principal
   const canEdit = principal?.role === 'OWNER'
-  const enrollmentValue = gym?.enrollmentQrToken || gym?.publicCode || 'LUDUS-GYM'
+  const hasEnrollmentQr = gym?.status === 'ACTIVE' && Boolean(gym.enrollmentQrToken && gym.publicCode)
 
   return (
     <>
@@ -195,27 +220,68 @@ export default function SettingsPage() {
             ) : null}
 
             <div className="mt-8 grid gap-10 lg:grid-cols-[240px_1fr]">
-              <div className="flex flex-col items-center border border-hairline bg-white p-5 text-center">
-                <QRCodeCanvas
-                  value={enrollmentValue}
-                  size={168}
-                  level="M"
-                  marginSize={2}
-                  bgColor="#ffffff"
-                  fgColor="#0b0c0e"
-                  title={`QR de inscripción de ${gym.name}`}
-                  className="h-auto max-w-full"
-                />
-                <p className="mt-5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#0b0c0e]">
-                  Muestra este QR para que nuevos socios se vinculen
-                </p>
-                <div className="mt-5 w-full border-t border-[#d4d4d4] pt-4 text-left">
-                  <p className="text-[10px] uppercase tracking-[0.14em] text-[#555555]">ID público</p>
-                  <p className="tabular mt-1 break-all text-sm font-bold text-[#0b0c0e]">
-                    {gym.publicCode || 'Pendiente de verificación'}
+              {hasEnrollmentQr ? (
+                <div className="flex flex-col items-center border border-hairline bg-white p-5 text-center">
+                  <QRCodeCanvas
+                    ref={enrollmentQrRef}
+                    value={gym.enrollmentQrToken}
+                    size={168}
+                    level="M"
+                    marginSize={2}
+                    bgColor="#ffffff"
+                    fgColor="#0b0c0e"
+                    title={`QR de afiliación de ${gym.name}`}
+                    className="h-auto max-w-full"
+                  />
+                  <p className="mt-5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#0b0c0e]">
+                    QR de afiliación para nuevos socios
                   </p>
+                  <div className="mt-5 w-full border-t border-[#d4d4d4] pt-4 text-left">
+                    <p className="text-[10px] uppercase tracking-[0.14em] text-[#555555]">Código público</p>
+                    <p className="tabular mt-1 break-all text-sm font-bold text-[#0b0c0e]">{gym.publicCode}</p>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void copyPublicCode()}
+                        className="min-h-10 border border-[#999999] px-3 text-[10px] font-bold uppercase tracking-[0.12em] text-[#0b0c0e]"
+                      >
+                        Copiar código
+                      </button>
+                      <button
+                        type="button"
+                        onClick={downloadEnrollmentQr}
+                        className="min-h-10 bg-[#0b0c0e] px-3 text-[10px] font-bold uppercase tracking-[0.12em] text-white"
+                      >
+                        Descargar QR
+                      </button>
+                    </div>
+                    {qrFeedback ? (
+                      <p role="status" className="mt-3 text-xs text-[#333333]">{qrFeedback}</p>
+                    ) : null}
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div
+                  role={gym.status === 'ACTIVE' ? 'alert' : 'status'}
+                  className="flex min-h-56 flex-col justify-center border border-hairline bg-canvas p-6"
+                >
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-volt">
+                    {gym.status === 'ACTIVE' ? 'Afiliación no disponible' : 'Pendiente de activación'}
+                  </p>
+                  <p className="mt-3 text-sm font-semibold text-ink">
+                    {gym.status === 'ACTIVE'
+                      ? 'El gimnasio está activo, pero aún no hay una credencial de afiliación válida.'
+                      : gym.status === 'SUSPENDED'
+                        ? 'El gimnasio está suspendido; su QR de afiliación no está disponible.'
+                        : 'El QR y el código público estarán disponibles cuando el gimnasio esté activo.'}
+                  </p>
+                  {gym.status === 'PENDING_VERIFICATION' ? (
+                    <p className="mt-3 text-xs leading-relaxed text-muted">
+                      El QR y el código público se emiten al activar el gimnasio. La verificación del correo del propietario y la aprobación administrativa son pasos separados.
+                    </p>
+                  ) : null}
+                </div>
+              )}
 
               <form onSubmit={(event) => void handleSave(event)} className="space-y-6">
                 <label className="block">
