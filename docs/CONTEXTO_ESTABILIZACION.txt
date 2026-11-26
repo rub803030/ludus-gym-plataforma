@@ -1,0 +1,187 @@
+LUDUS GYM - CONTEXTO DE ESTABILIZACION
+======================================
+Fecha: 2026-11-26
+
+Este archivo resume el contexto funcional, las decisiones tecnicas, los cambios
+realizados y los pendientes para que otra persona pueda continuar el trabajo.
+No contiene contrasenas, tokens, correos personales ni valores de secretos.
+
+
+1. REPOSITORIO Y RAMA
+---------------------
+Repositorio: https://github.com/rub803030/ludus-gym-plataforma
+Directorio de trabajo: apps/ludus-gym-plataforma
+Rama: hotfix/stabilization-membership-flow
+Rama remota: origin/hotfix/stabilization-membership-flow
+Estado: publicada en GitHub. No se ha abierto PR, fusionado ni desplegado.
+No se modificaron directamente main/master.
+
+La rama contiene los commits de estabilizacion. El push fue a la rama hotfix,
+no a master. El workflow de Vercel revisado se activa en main/master o de forma
+manual; no se ejecuto un despliegue durante esta tarea.
+
+
+2. OBJETIVO Y FLUJO PRIORITARIO
+-------------------------------
+Estabilizar el flujo operativo:
+
+1. Propietario registra un gimnasio.
+2. Verifica su correo y un administrador autorizado aprueba el gimnasio.
+3. El gimnasio activo ofrece su codigo/QR real de afiliacion.
+4. El socio crea su cuenta, verifica correo y se afilia al gimnasio.
+5. Recepcion cobra un plan del gimnasio y genera la membresia correspondiente.
+6. El socio presenta su QR temporal y recepcion registra el acceso.
+7. El flujo mantiene datos, pagos y permisos aislados entre gimnasios.
+
+El QR de afiliacion identifica al gimnasio; no es el QR temporal de acceso.
+
+
+3. ARQUITECTURA Y REGLAS DE DATOS
+---------------------------------
+- Monorepo pnpm.
+- API Node.js/TypeScript con Fastify, Prisma y PostgreSQL.
+- Consola web Next.js/TypeScript.
+- App Android Kotlin.
+- Contratos y validaciones compartidos en packages/shared.
+- GymMembership es la fuente de verdad de afiliacion y alcance local.
+- Member.gymId permanece como dato legado/contexto de compatibilidad; no debe
+  autorizar consultas, cobros ni accesos.
+- Member.status representa la cuenta global; GymMembership representa la
+  afiliacion a un gimnasio; Membership representa el plan pagado y vigente.
+- Para permitir acceso se exige cuenta global activa, afiliacion local activa,
+  gimnasio activo y plan vigente del mismo gimnasio.
+
+
+4. DECISIONES FUNCIONALES ACORDADAS
+-----------------------------------
+- El precio del plan en el servidor es la fuente de verdad del cobro.
+- No se aceptan descuentos arbitrarios no modelados.
+- El reembolso total revoca la membresia vinculada dentro de la transaccion.
+- Un pago legacy ambiguo no se reembolsa silenciosamente si puede sostener una
+  membresia activa.
+- El aforo se valida de forma comun y atomica para check-in QR y manual.
+- Reintentar una solicitud de cobro identica devuelve el mismo pago; reutilizar
+  la clave con payload diferente produce conflicto.
+- Un fallo transaccional sin efectos no debe reservar permanentemente la clave
+  de idempotencia.
+- Los folios son consecutivos por gimnasio y anio mediante contador persistido.
+- No ejecutar migraciones, publicar APK ni desplegar a produccion durante esta
+  fase.
+
+
+5. CAMBIOS IMPLEMENTADOS
+------------------------
+API y base de datos:
+- El alta de recepcion crea Member y GymMembership en una transaccion.
+- La afiliacion movil crea/reactiva la relacion local y establece el gimnasio
+  activo; se rechazan cuentas, gimnasios o afiliaciones no elegibles.
+- Listados, cobros, reportes, rutinas y nutricion aplican el alcance por
+  GymMembership o filtros explicitos por gymId.
+- La emision del QR y los check-ins QR/manual comparten las reglas de acceso.
+- La capacidad del gimnasio se verifica dentro de la transaccion.
+- La aprobacion de gimnasios requiere sesion ADMIN y verificacion del correo
+  del propietario.
+- Los errores QR diferencian credenciales invalidas de fallos de infraestructura.
+- Los cobros derivan el importe del plan del servidor y crean su membresia
+  asociada.
+- Los reembolsos revocan la membresia vinculada y los casos legacy ambiguos se
+  bloquean para revision.
+- La idempotencia usa el pago persistido y clave unica por gimnasio.
+- El folio se incrementa con un contador por gimnasio/anio.
+
+Web y Android:
+- La web presenta el QR/codigo real solo para el gimnasio activo/aprobado.
+- El POS muestra el importe del plan como no editable.
+- La UI conserva errores de API relacionados con afiliacion y aprobacion.
+- Android conserva errores de escaneo y permite reintentar la afiliacion.
+- No se genero una APK nueva. El codigo de version documentado previamente era
+  versionCode 4 / versionName 0.2.0; verificarlo de nuevo antes de release.
+
+Migraciones nuevas, aun no aplicadas:
+- infra/supabase/migrations/0010_backfill_gym_memberships.sql
+- infra/supabase/migrations/0011_payment_stability.sql
+
+Pruebas agregadas:
+- apps/api/tests/integration/member-creation.spec.ts
+- apps/api/tests/integration/billing-flow.spec.ts
+- apps/api/tests/unit/member-access.spec.ts
+- apps/api/tests/unit/access-capacity.spec.ts
+- apps/api/tests/unit/membership-period.spec.ts
+
+Documentacion:
+- docs/QA.md
+- docs/STABILIZATION_PLAN.md
+- docs/STABILIZATION_RISKS.md
+- docs/CREDENTIAL_ROTATION.md
+- docs/FLUJO_OPERATIVO.txt (copia redactada)
+
+
+6. COMMITS DE LA RAMA
+---------------------
+117aad1 fix(web): show active gym affiliation QR
+7bed248 fix(mobile): preserve QR errors and retry affiliation scans
+7850c75 fix(api): enforce gym-scoped member affiliations
+b1487ba fix(access): enforce shared gym capacity checks
+2177c6f fix(billing): make charges and refunds consistent
+bed847f fix(web): align onboarding and cashier flows
+92f9c27 docs(stabilization): record QA and residual risks
+5c90d15 docs(security): redact operational guide
+8d57704 docs(security): record upstream credential exposure
+9552b07 docs(security): add credential rotation runbook
+
+
+7. VALIDACION REALIZADA
+-----------------------
+PASS:
+- API: 47 pruebas en 12 archivos.
+- Typecheck de API.
+- Build y typecheck de packages/shared.
+- Typecheck/lint de web.
+- Build de produccion de web.
+- git diff --check.
+- Rama publicada, limpia y siguiendo origin/hotfix/stabilization-membership-flow.
+
+NO EJECUTADO:
+- Pruebas contra PostgreSQL/Redis real; las pruebas API relevantes usan Prisma
+  simulado y no demuestran RLS, bloqueo ni concurrencia reales.
+- Migraciones 0010 y 0011.
+- Flujos end-to-end con usuarios y gimnasios de staging.
+- Build, lint o pruebas Android; no habia toolchain Android/Java utilizable.
+- scripts/test-api-flows.py; Python no estaba disponible.
+
+
+8. CREDENCIALES Y SEGURIDAD
+---------------------------
+- Una version upstream de docs/FLUJO_OPERATIVO.txt contenia credenciales de
+  cuentas y datos personales en texto claro. Los valores fueron omitidos de
+  esta guia y el archivo actual de la rama fue redactado.
+- El commit original sigue en el historial remoto; redactar el archivo no borra
+  ese commit ni invalida las credenciales.
+- No se ha confirmado que las credenciales expuestas hayan sido rotadas. El
+  responsable debe cambiar/desactivar las cuentas afectadas y revisar sesiones.
+- El repositorio no tiene una pantalla ni un endpoint de cambio/restablecimiento
+  de contrasena. docs/CREDENTIAL_ROTATION.md describe un proceso para revision;
+  no se ha creado ni ejecutado un script de restablecimiento.
+- No se compartieron nuevos secretos y no se cambio ninguna cuenta.
+- Coordinar la limpieza del historial con el responsable despues de rotar los
+  secretos. No reescribir ni forzar historia sin autorizacion y coordinacion.
+
+
+9. PENDIENTES Y ORDEN RECOMENDADO
+---------------------------------
+1. Rotar/desactivar las cuentas comprometidas mediante el responsable autorizado.
+2. Despues, coordinar la limpieza del historial remoto; la rama ya esta publicada.
+3. Configurar localmente el destino de staging y confirmar que no es produccion.
+   No compartir credenciales por chat.
+4. Respaldar/verificar la base y comprobar que migraciones ya se aplicaron.
+5. Revisar y aplicar solo las migraciones 0010 y 0011 en staging. No ejecutar el
+   migrador general de migraciones y semillas sin aislar el destino.
+6. Probar transacciones, RLS, aislamiento multi-gimnasio, reembolsos, reintentos,
+   folios concurrentes y aforo concurrente contra PostgreSQL.
+7. Completar los casos de docs/QA.md y registrar el resultado real de cada caso.
+8. Instalar JDK/Android SDK compatibles, validar Android y crear APK de prueba;
+   incrementar versionCode solo con autorizacion.
+9. Revisar riesgos y regresiones. No solicitar merge/release hasta aprobar QA.
+
+Estado final conocido: rama hotfix publicada; sin PR, merge, migraciones,
+rotacion de credenciales, APK nueva ni despliegue de produccion.

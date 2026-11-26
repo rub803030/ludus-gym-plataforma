@@ -3,7 +3,7 @@
 ## Alcance
 
 - Rama de trabajo: `hotfix/stabilization-membership-flow`.
-- Base de trabajo original: `db6dd47`; `origin/master` avanzó después con tres cambios del workflow de despliegue web. Se revisó que el workflow solo se ejecuta en `main`/`master` o manualmente; esta rama no se ha publicado ni desplegado.
+- Base de trabajo original: `db6dd47`; la rama se actualizó sobre `origin/master` y se publicó como `origin/hotfix/stabilization-membership-flow`. No se abrió PR, no se fusionó ni se desplegó.
 - Objetivo: alinear afiliaciones, pagos, acceso QR y consultas con el flujo propietario → gimnasio aprobado → socio afiliado → recepción.
 - Límite: no modificar `main`/`master`, no ejecutar migraciones contra servicios compartidos, no publicar APK, no crear tags, no desplegar ni solicitar merge.
 
