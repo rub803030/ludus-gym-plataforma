@@ -161,10 +161,11 @@ export async function sendVerificationEmail(input: VerificationEmailInput): Prom
         })
         cooldownUntil.delete(account.user)
         return { id: info.messageId, skipped: false }
-      } catch {
+      } catch (error) {
+        const reason = error instanceof Error ? error.message.slice(0, 200) : 'error desconocido'
         cooldownUntil.set(account.user, Date.now() + COOLDOWN_MS)
         await releaseSlot(account.user, day).catch(() => undefined)
-        lastRejection = new Error(`SMTP rechazó el envío con la cuenta ${account.user}; se usará otra en el próximo intento`)
+        lastRejection = new Error(`SMTP rechazó el envío con la cuenta ${account.user}: ${reason}`)
       }
     }
 
