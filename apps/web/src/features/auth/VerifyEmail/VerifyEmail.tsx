@@ -8,6 +8,18 @@ import { isApiError } from '@/types'
 
 type State = 'checking' | 'success' | 'error' | 'idle'
 
+/** Acepta el token suelto o la URL completa del correo (web o deep link). */
+function extractVerificationToken(raw: string): string {
+  const value = raw.trim()
+  const match = value.match(/[?&]token=([^&#\s]+)/)
+  if (!match) return value
+  try {
+    return decodeURIComponent(match[1] ?? '')
+  } catch {
+    return match[1] ?? ''
+  }
+}
+
 export function VerifyEmail() {
   const params = useSearchParams()
   const token = params.get('token')
@@ -77,7 +89,7 @@ export function VerifyEmail() {
 
   function handleCodeSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const value = code.trim()
+    const value = extractVerificationToken(code)
     if (!value) return
     void confirm(value)
   }
