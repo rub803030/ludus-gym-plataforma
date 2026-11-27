@@ -134,13 +134,16 @@ export async function registerBillingRoutes(app: FastifyInstance): Promise<void>
     async (req, reply) => {
       const body = parse(chargeSchema, req.body)
       const principal = getPrincipal(req)
-      const amountCents = body.amount
+      const amountCents = Math.round(body.amount * 100)
 
       const result = await prisma.$transaction(async (tx) => {
         const member = await tx.member.findFirst({ where: { id: body.memberId, gymId: principal.gymId } })
         if (!member) throw new DomainError('NOT_FOUND', 'Socio no encontrado', 404)
         const plan = await tx.plan.findFirst({ where: { id: body.planId, gymId: principal.gymId } })
         if (!plan) throw new DomainError('NOT_FOUND', 'Plan no encontrado', 404)
+        if (amountCents !== plan.priceCents) {
+          throw new DomainError('VALIDATION_ERROR', 'El importe debe coincidir con el precio del plan', 400)
+        }
 
         let session = await tx.cashSession.findFirst({
           where: { gymId: principal.gymId, status: 'OPEN' },

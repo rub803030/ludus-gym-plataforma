@@ -119,7 +119,7 @@ export function CheckoutPanel() {
     const request: ChargeRequest = {
       memberId,
       planId,
-      amount: Math.round(amount),
+      amount: Math.round(amount * 100) / 100,
       currency: 'MXN',
       method,
       idempotencyKey: idempotencyRef.current,
@@ -133,7 +133,8 @@ export function CheckoutPanel() {
     } catch (chargeError) {
       setRecent((current) => current.filter((item) => item.id !== optimisticId))
       setError(getErrorMessage(chargeError))
-      idempotencyRef.current = createIdempotencyKey()
+      // La clave se conserva: un timeout ambiguo puede haber cobrado y un
+      // reintento con otra clave duplicaría el cargo.
     } finally {
       lockRef.current = false
       setSubmitting(false)
@@ -323,7 +324,20 @@ export function CheckoutPanel() {
             <h2 className="mb-4 border-b border-hairline pb-3 font-display text-lg font-extrabold uppercase tracking-[-0.03em]">
               03 · Importe y método
             </h2>
-            <NumericInput value={amount} onChange={setAmount} currency label="Monto a cobrar" step={50} min={0} />
+            <NumericInput
+              value={amount}
+              onChange={setAmount}
+              currency
+              label="Monto a cobrar"
+              step={0.5}
+              min={0}
+              disabled={Boolean(selectedPlan)}
+            />
+            {selectedPlan ? (
+              <p className="mt-2 text-[10px] uppercase tracking-[0.12em] text-muted">
+                El importe se toma del plan seleccionado.
+              </p>
+            ) : null}
             <fieldset className="mt-7">
               <legend className="mb-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted">
                 Método de pago
