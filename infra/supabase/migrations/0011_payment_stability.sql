@@ -16,7 +16,7 @@ SELECT
   max(substring(receipt_number FROM '^LUD-[0-9]{4}-([0-9]+)$')::bigint)
 FROM public.payments
 WHERE receipt_number ~ '^LUD-[0-9]{4}-[0-9]+$'
-GROUP BY gym_id, substring(receipt_number FROM '^LUD-[0-9]{4}-[0-9]+$')
+GROUP BY gym_id, substring(receipt_number FROM '^LUD-([0-9]{4})-[0-9]+$')::integer
 ON CONFLICT (gym_id, receipt_year) DO UPDATE
 SET last_value = GREATEST(public.receipt_counters.last_value, EXCLUDED.last_value),
     updated_at = now();
