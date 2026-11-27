@@ -77,6 +77,9 @@ S-09    /health/ready degrada sin BD/Redis        Ejecutado (4 tests); falta en 
 4. MIGRACIONES (archivos listos, NO aplicados)
 --------------------------------------------------------------------------------
 
+0007_email_send_quota.sql             Ya estaba aplicada en staging
+0008_gym_registration.sql             Aplicada en staging - OK (deriva detectada por QA)
+0009_admin_accounts.sql               Aplicada en staging - OK (3 cuentas ADMIN)
 0010_backfill_gym_memberships.sql     Aplicada en staging - OK
 0011_payment_stability.sql            Aplicada en staging - OK (GROUP BY corregido)
 0012_security_hardening.sql           Aplicada en staging - OK
@@ -94,6 +97,27 @@ PENDIENTE: aplicarlas en produccion con snapshot previo antes del deploy.
 
 Prohibido: scripts/apply-all-migrations.py en BD real (reaplica seeds y
 sobrescribe verificaciones). No ejecutar en produccion sin snapshot previo.
+
+--------------------------------------------------------------------------------
+4b. QA REAL EJECUTADO CONTRA STAGING (2026-11-27, API local + BD real)
+--------------------------------------------------------------------------------
+
+Se emitieron JWT con el secreto local (sin imprimirlo) y se llamaron rutas reales.
+No se enviaron correos ni se crearon cobros o eventos.
+
+ID      Escenario                                 Resultado
+------  ----------------------------------------  ------------------------------
+S-07    ADMIN lista gimnasios pendientes          200 OK
+S-07    OWNER sin permiso global                   403 OK (antes de 0009)
+F-19    MEMBER mobile consulta /members/me         200 OK
+F-19    MEMBER mobile sin permiso de aforo         403 OK
+D-05    /health (liveness)                         200 OK
+D-05    /health/ready (readiness)                  503 esperado: Redis local ausente
+        detalle: database ok=true, cache ok=false
+
+Ademas, antes de 0008 la ruta /api/access/occupancy devolvia 500 (P2022:
+gyms.city inexistente). Tras aplicar 0008/0009 no se reprodujo. Este fue el
+hallazgo real que obligo a ampliar el paquete de migraciones de staging.
 
 --------------------------------------------------------------------------------
 5. DESPLIEGUE

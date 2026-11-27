@@ -98,13 +98,20 @@ G1. MIGRACIONES - APLICADAS EN STAGING (2026-11-27)
       0011_payment_stability.sql         OK tras corregir el GROUP BY (ver 487af4e)
       0012_security_hardening.sql        OK
       0013_access_events_tenant.sql      OK
+    QA real con la API local contra esta BD detecto deriva adicional: faltaban
+    0008 y 0009 (gyms.city, contact_email, enum ADMIN). Se aplicaron despues:
+      0008_gym_registration.sql          OK
+      0009_admin_accounts.sql            OK (3 cuentas ADMIN)
+    0007 ya estaba aplicada (email_send_quotas presente).
     Verificacion posterior real:
       socios sin afiliacion = 0
       receipt_counters = 1 fila, ultimo folio 8 (8 recibos validos)
       politica RLS tenant_isolation en receipt_counters = 1
       audit_logs_default con bound DEFAULT = 1
       access_event_dedupe = 0, ux_access_event_dedupe_tenant = 1
-    PENDIENTE: aplicar el mismo paquete en PRODUCCION con snapshot previo,
+      gyms.city = 1, contact_email = 1, enum staff_role ADMIN = 1
+    PENDIENTE: aplicar el mismo paquete (0008, 0009, 0010-0013) en PRODUCCION
+    con snapshot previo,
     antes de desplegar este codigo. No hacerlo sin autorizacion explicita.
 
 G2. SECRETOS - BLOQUEANTE (los rota el responsable, sin imprimir valores)
