@@ -7,6 +7,8 @@ import rateLimit from '@fastify/rate-limit'
 import { ZodError } from 'zod'
 import { Server as SocketServer } from 'socket.io'
 import { loadEnv } from './config/env.js'
+import { healthSnapshot, probeDependency } from './shared/health.js'
+import { prisma } from './shared/database/prisma.js'
 import { DomainError } from './shared/errors/domain-error.js'
 import { type TokenClaims, verifyAccessToken } from './shared/jwt.js'
 import { getCache, getRedisClient } from './shared/redis.js'
@@ -100,7 +102,23 @@ export async function buildApp() {
     })
   })
 
+  // Liveness: el proceso responde. Fly debe seguir usando /health para no
+  // reiniciar machines durante un corte de BD/Redis.
   app.get('/health', async () => ({ status: 'ok', service: 'ludus-api', at: new Date().toISOString() }))
+
+  // Readiness: dependencias reales. Se usa en el gate de QA y en staging;
+  // las sondas tienen timeout corto y no exponen mensajes de error.
+  app.get('/health/ready', async (_req, reply) => {
+    const redis = getRedisClient()
+    const [database, cache] = await Promise.all([
+      probeDependency(() => prisma.$queryRaw`SELECT 1`),
+      redis
+        ? probeDependency(() => redis.ping())
+        : Promise.resolve({ ok: true, detail: 'memory' as const }),
+    ])
+    const snapshot = healthSnapshot(database, cache)
+    return reply.code(snapshot.status === 'ok' ? 200 : 503).send(snapshot)
+  })
 
   await registerAuthRoutes(app)
   await registerMemberRoutes(app)
