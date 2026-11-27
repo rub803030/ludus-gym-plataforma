@@ -8,6 +8,7 @@ import { requirePermission } from '../../shared/middleware/rbac.js'
 import { requireAuth } from '../../shared/http.js'
 import { idempotencyGuard } from '../../shared/middleware/idempotency.js'
 import { writeAudit } from '../../shared/audit.js'
+import { activeMembershipWhere, assertActiveGymMembership } from '../../shared/membership-scope.js'
 
 const planFlagSchema = z.enum(['gym_access', 'classes', 'nutrition', 'guest_pass'])
 
@@ -137,8 +138,9 @@ export async function registerBillingRoutes(app: FastifyInstance): Promise<void>
       const amountCents = Math.round(body.amount * 100)
 
       const result = await prisma.$transaction(async (tx) => {
-        const member = await tx.member.findFirst({ where: { id: body.memberId, gymId: principal.gymId } })
+        const member = await tx.member.findFirst({ where: { id: body.memberId, deletedAt: null } })
         if (!member) throw new DomainError('NOT_FOUND', 'Socio no encontrado', 404)
+        await assertActiveGymMembership(member.id, principal.gymId)
         const plan = await tx.plan.findFirst({ where: { id: body.planId, gymId: principal.gymId } })
         if (!plan) throw new DomainError('NOT_FOUND', 'Plan no encontrado', 404)
         if (amountCents !== plan.priceCents) {
@@ -155,8 +157,16 @@ export async function registerBillingRoutes(app: FastifyInstance): Promise<void>
           })
         }
 
-        const receiptCount = await tx.payment.count({ where: { gymId: principal.gymId } })
-        const receiptNumber = `LUD-${new Date().getFullYear()}-${String(receiptCount + 1).padStart(6, '0')}`
+        const year = new Date().getFullYear()
+        const [counter] = await tx.$queryRaw<Array<{ last_value: bigint }>>`
+          INSERT INTO public.receipt_counters (gym_id, receipt_year, last_value, updated_at)
+          VALUES (${principal.gymId}::uuid, ${year}, 1, now())
+          ON CONFLICT (gym_id, receipt_year) DO UPDATE
+            SET last_value = receipt_counters.last_value + 1, updated_at = now()
+          RETURNING last_value
+        `
+        const lastValue = counter?.last_value ?? 1n
+        const receiptNumber = `LUD-${year}-${String(lastValue).padStart(6, '0')}`
 
         const payment = await tx.payment.create({
           data: {
@@ -179,7 +189,7 @@ export async function registerBillingRoutes(app: FastifyInstance): Promise<void>
         end.setDate(end.getDate() + plan.durationDays)
 
         const existing = await tx.membership.findFirst({
-          where: { memberId: member.id, status: 'ACTIVE' },
+          where: { memberId: member.id, ...activeMembershipWhere(principal.gymId) },
         })
         if (existing) {
           await tx.membership.update({

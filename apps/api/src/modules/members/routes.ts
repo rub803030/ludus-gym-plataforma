@@ -13,6 +13,7 @@ import { writeAudit } from '../../shared/audit.js'
 import { issueVerification, verificationResponse } from '../auth/email-verification.js'
 import { issueMemberSession } from '../auth/auth-service.js'
 import { verifyEnrollmentQr } from '../../shared/gym-qr.js'
+import { activeMembershipWhere, assertActiveGymMembership } from '../../shared/membership-scope.js'
 
 const updateSchema = createMemberSchema.partial().extend({ status: z.enum(['ACTIVE', 'PENDING', 'EXPIRED', 'SUSPENDED']).optional() })
 
@@ -199,7 +200,7 @@ export async function registerMemberRoutes(app: FastifyInstance): Promise<void> 
     const { page, limit, search } = parsePagination(req.query as Record<string, unknown>)
     const principal = getPrincipal(req)
     const where = {
-      gymId: principal.gymId,
+      gymMemberships: { some: { gymId: principal.gymId, isActive: true, deletedAt: null } },
       deletedAt: null,
       ...(search
         ? {
@@ -215,7 +216,7 @@ export async function registerMemberRoutes(app: FastifyInstance): Promise<void> 
     const [items, total] = await Promise.all([
       prisma.member.findMany({
         where,
-        include: { memberships: { where: { status: 'ACTIVE' }, take: 1, include: { plan: true } } },
+        include: { memberships: { where: activeMembershipWhere(principal.gymId), take: 1, include: { plan: true } } },
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * limit,
         take: limit,
@@ -228,10 +229,11 @@ export async function registerMemberRoutes(app: FastifyInstance): Promise<void> 
   app.get('/api/members/me', { preHandler: requireAuth }, async (req) => {
     const principal = getPrincipal(req)
     if (principal.role !== 'MEMBER') throw new DomainError('FORBIDDEN', 'Solo socios', 403)
+    const activeGymId = principal.activeGymId ?? principal.gymId
     const member = await prisma.member.findUnique({
       where: { id: principal.id },
       include: {
-        memberships: { where: { status: 'ACTIVE' }, take: 1, include: { plan: true } },
+        memberships: { where: activeMembershipWhere(activeGymId), take: 1, include: { plan: true } },
         nutrition: { where: { deletedAt: null }, take: 1, include: { meals: true } },
       },
     })
@@ -258,8 +260,9 @@ export async function registerMemberRoutes(app: FastifyInstance): Promise<void> 
 
   app.get('/api/members/:id/medical', { preHandler: [requireAuth, requirePermission('members:medical:read')] }, async (req) => {
     const { id } = req.params as { id: string }
-    const member = await prisma.member.findFirst({ where: { id, gymId: getPrincipal(req).gymId } })
+    const member = await prisma.member.findFirst({ where: { id, deletedAt: null } })
     if (!member) throw new DomainError('NOT_FOUND', 'Socio no encontrado', 404)
+    await assertActiveGymMembership(member.id, getPrincipal(req).gymId)
     return {
       medicalNotes: decryptOptional(member.medicalNotesCipher),
       allergies: decryptOptional(member.allergiesCipher),
@@ -286,14 +289,16 @@ export async function registerMemberRoutes(app: FastifyInstance): Promise<void> 
 
   app.get('/api/members/:id', { preHandler: [requireAuth, requirePermission('members:read')] }, async (req) => {
     const { id } = req.params as { id: string }
+    const gymId = getPrincipal(req).gymId
     const member = await prisma.member.findFirst({
-      where: { id, gymId: getPrincipal(req).gymId, deletedAt: null },
+      where: { id, deletedAt: null },
       include: {
-        memberships: { include: { plan: true }, orderBy: { createdAt: 'desc' } },
-        payments: { orderBy: { createdAt: 'desc' }, take: 20 },
+        memberships: { where: { plan: { gymId } }, include: { plan: true }, orderBy: { createdAt: 'desc' } },
+        payments: { where: { gymId }, orderBy: { createdAt: 'desc' }, take: 20 },
       },
     })
     if (!member) throw new DomainError('NOT_FOUND', 'Socio no encontrado', 404)
+    await assertActiveGymMembership(member.id, gymId)
     return {
       ...toDto(member),
       medical: hasPermission(getPrincipal(req).role, 'members:medical:read')
@@ -323,7 +328,9 @@ export async function registerMemberRoutes(app: FastifyInstance): Promise<void> 
   app.post('/api/members', { preHandler: [requireAuth, requirePermission('members:write')] }, async (req, reply) => {
     const body = parse(createMemberSchema, req.body)
     const principal = getPrincipal(req)
-    const count = await prisma.member.count({ where: { gymId: principal.gymId } })
+    const count = await prisma.member.count({
+      where: { gymMemberships: { some: { gymId: principal.gymId, deletedAt: null } } },
+    })
     const code = `LUD-${String(count + 1).padStart(6, '0')}`
     const temporaryPassword = generateTemporaryPassword()
     const member = await prisma.member.create({
@@ -341,6 +348,7 @@ export async function registerMemberRoutes(app: FastifyInstance): Promise<void> 
         conditionsCipher: encryptOptional(body.conditions),
         passwordHash: hashPassword(temporaryPassword),
         status: 'PENDING',
+        gymMemberships: { create: { gymId: principal.gymId } },
       },
     })
     await issueVerification({
@@ -367,8 +375,9 @@ export async function registerMemberRoutes(app: FastifyInstance): Promise<void> 
     const { id } = req.params as { id: string }
     const body = parse(updateSchema, req.body)
     const principal = getPrincipal(req)
-    const before = await prisma.member.findFirst({ where: { id, gymId: principal.gymId } })
+    const before = await prisma.member.findFirst({ where: { id, deletedAt: null } })
     if (!before) throw new DomainError('NOT_FOUND', 'Socio no encontrado', 404)
+    await assertActiveGymMembership(before.id, principal.gymId)
     const emailChanged = Boolean(body.email && body.email.toLowerCase() !== before.email.toLowerCase())
     const member = await prisma.member.update({
       where: { id },

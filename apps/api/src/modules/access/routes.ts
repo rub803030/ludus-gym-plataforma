@@ -8,6 +8,19 @@ import { requireAuth } from '../../shared/http.js'
 import { issueQr, issueOfflineCredential, verifyQr, type VerifiedQr } from '../../shared/qr.js'
 import { getCache } from '../../shared/redis.js'
 import { writeAudit } from '../../shared/audit.js'
+import { activeMembershipWhere, assertActiveGymMembership } from '../../shared/membership-scope.js'
+
+async function assertCapacity(gymId: string): Promise<void> {
+  const gym = await prisma.gym.findUnique({ where: { id: gymId } })
+  const startOfDay = new Date()
+  startOfDay.setHours(0, 0, 0, 0)
+  const occupancy = await prisma.accessEvent.count({
+    where: { gymId, createdAt: { gte: startOfDay }, result: { in: ['GRANTED', 'OFFLINE_GRANTED'] } },
+  })
+  if (occupancy >= (gym?.capacity ?? Infinity)) {
+    throw new DomainError('CONFLICT', 'Aforo completo. Intenta en unos minutos', 409)
+  }
+}
 
 const verifySchema = z.object({ token: z.string().min(20) })
 const manualSchema = z.object({ memberId: z.string().uuid(), notes: z.string().max(300).optional() })
@@ -22,18 +35,7 @@ export async function registerAccessRoutes(app: FastifyInstance): Promise<void> 
     const body = z.object({ gymId: z.string().uuid().optional() }).parse(req.body ?? {})
     const gymId = body.gymId ?? principal.activeGymId ?? principal.gymId
     if (!gymId) throw new DomainError('NO_GYM', 'Únete a algún gimnasio para tener acceso', 403)
-    const link = await prisma.gymMembership.findFirst({
-      where: {
-        memberId: principal.id,
-        gymId,
-        isActive: true,
-        status: 'ACTIVE',
-        deletedAt: null,
-        gym: { status: 'ACTIVE', deletedAt: null },
-      },
-      select: { id: true },
-    })
-    if (!link) throw new DomainError('NO_GYM', 'Únete a algún gimnasio para tener acceso', 403)
+    await assertActiveGymMembership(principal.id, gymId)
     const qr = issueQr(principal.id, gymId)
     return { ...qr, offlineCredential: issueOfflineCredential(principal.id, gymId) }
   })
@@ -73,17 +75,10 @@ export async function registerAccessRoutes(app: FastifyInstance): Promise<void> 
 
     const member = await prisma.member.findFirst({
       where: { id: decoded.memberId, deletedAt: null },
-      include: {
-        gymMemberships: {
-          where: { gymId: decoded.gymId, isActive: true, status: 'ACTIVE', deletedAt: null },
-          take: 1,
-        },
-        memberships: { where: { status: 'ACTIVE', plan: { gymId: decoded.gymId } }, take: 1 },
-      },
+      include: { memberships: { where: activeMembershipWhere(decoded.gymId), take: 1 } },
     })
-    if (!member || (!member.gymMemberships[0] && member.gymId !== decoded.gymId)) {
-      throw new DomainError('NOT_FOUND', 'Socio no encontrado', 404)
-    }
+    if (!member) throw new DomainError('NOT_FOUND', 'Socio no encontrado', 404)
+    await assertActiveGymMembership(member.id, decoded.gymId)
 
     const membership = member.memberships[0]
     if (!membership?.endDate || membership.endDate.getTime() < Date.now()) {
@@ -93,15 +88,7 @@ export async function registerAccessRoutes(app: FastifyInstance): Promise<void> 
       throw new DomainError('MEMBERSHIP_EXPIRED', 'La membresía venció. Renueva antes de dar acceso', 403)
     }
 
-    const gym = await prisma.gym.findUnique({ where: { id: principal.gymId } })
-    const startOfDay = new Date()
-    startOfDay.setHours(0, 0, 0, 0)
-    const occupancy = await prisma.accessEvent.count({
-      where: { gymId: principal.gymId, createdAt: { gte: startOfDay }, result: { in: ['GRANTED', 'OFFLINE_GRANTED'] } },
-    })
-    if (occupancy >= (gym?.capacity ?? Infinity)) {
-      throw new DomainError('CONFLICT', 'Aforo completo. Intenta en unos minutos', 409)
-    }
+    await assertCapacity(principal.gymId)
 
     try {
       await prisma.accessEvent.create({
@@ -141,14 +128,18 @@ export async function registerAccessRoutes(app: FastifyInstance): Promise<void> 
     const body = z.object({ memberId: z.string().uuid(), notes: z.string().max(300).optional() }).parse(manualSchema.parse(req.body))
     const principal = getPrincipal(req)
     const member = await prisma.member.findFirst({
-      where: { id: body.memberId, gymId: principal.gymId },
-      include: { memberships: { where: { status: 'ACTIVE' }, take: 1 } },
+      where: { id: body.memberId, deletedAt: null },
+      include: { memberships: { where: activeMembershipWhere(principal.gymId), take: 1 } },
     })
     if (!member) throw new DomainError('NOT_FOUND', 'Socio no encontrado', 404)
+    await assertActiveGymMembership(member.id, principal.gymId)
+
     const membership = member.memberships[0]
     if (!membership?.endDate || membership.endDate.getTime() < Date.now()) {
       throw new DomainError('MEMBERSHIP_EXPIRED', 'La membresía venció; puedes renovarla aquí mismo antes de dar acceso', 403)
     }
+    await assertCapacity(principal.gymId)
+
     // Los buckets QR son siempre positivos (Date.now()/30_000). Usamos un
     // espacio negativo con granularidad de milisegundos para que un check-in
     // manual nunca colisione con el constraint único (member, bucket, result).
