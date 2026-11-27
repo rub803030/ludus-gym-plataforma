@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { ADMIN_PERMISSIONS, hasPermission, type Permission } from '@ludus/shared'
 import { api, getErrorMessage, hydrateSession } from '@/lib/api-client'
 import { formatDateTime, roleLabel } from '@/lib/format'
 import { useSession } from '@/lib/use-session'
@@ -18,26 +19,7 @@ const ASSIGNABLE_ROLES: Array<{ role: Role; label: string }> = [
   { role: 'OWNER', label: roleLabel('OWNER') },
 ]
 
-const PERMISSIONS: readonly string[] = [
-  'members:read',
-  'members:write',
-  'members:medical:read',
-  'payments:charge',
-  'payments:refund',
-  'payments:audit',
-  'cash:shift:open',
-  'cash:shift:close',
-  'staff:manage',
-  'plans:manage',
-  'reports:financial',
-  'routines:assign',
-  'nutrition:assign',
-  'classes:manage',
-  'access:checkin',
-  'audit:read',
-]
-
-const PERMISSION_LABELS: Record<string, string> = {
+const PERMISSION_LABELS: Record<Permission, string> = {
   'members:read': 'Consultar socios',
   'members:write': 'Crear y editar socios',
   'members:medical:read': 'Consultar información médica',
@@ -55,18 +37,6 @@ const PERMISSION_LABELS: Record<string, string> = {
   'access:checkin': 'Registrar accesos',
   'audit:read': 'Consultar bitácora de auditoría',
   'gyms:approve': 'Autorizar altas de gimnasios',
-}
-
-const MATRIX: Record<Role, readonly string[]> = {
-  ADMIN: [...PERMISSIONS, 'gyms:approve'],
-  OWNER: PERMISSIONS,
-  MANAGER: [
-    'members:read', 'members:write', 'members:medical:read', 'payments:charge',
-    'cash:shift:open', 'cash:shift:close', 'routines:assign', 'nutrition:assign',
-    'classes:manage', 'access:checkin', 'audit:read',
-  ],
-  STAFF: ['members:read', 'payments:charge', 'cash:shift:open', 'cash:shift:close', 'access:checkin'],
-  MEMBER: [],
 }
 
 interface PendingChange {
@@ -266,8 +236,8 @@ export function LicenseManager() {
             <div key={option.role} className="bg-canvas p-6">
               <p className="font-display text-sm font-extrabold tracking-[0.1em] text-volt">{option.label}</p>
               <ul className="mt-5 space-y-2">
-                {PERMISSIONS.map((permission) => {
-                  const allowed = MATRIX[option.role].includes(permission)
+                {ADMIN_PERMISSIONS.map((permission) => {
+                  const allowed = hasPermission(option.role, permission)
                   return (
                     <li
                       key={permission}
