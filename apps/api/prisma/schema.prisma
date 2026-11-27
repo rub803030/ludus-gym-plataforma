@@ -357,7 +357,7 @@ model AccessEvent {
 
   member Member @relation(fields: [memberId], references: [id])
 
-  @@unique([memberId, qrBucket, result])
+  @@unique([gymId, memberId, qrBucket, result])
   @@index([gymId, createdAt])
   @@map("access_events")
 }
