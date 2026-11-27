@@ -1,5 +1,6 @@
 package com.ludus.gym.data.repository
 
+import com.ludus.gym.BuildConfig
 import com.ludus.gym.data.demo.DemoCatalog
 import com.ludus.gym.data.local.LudusDao
 import com.ludus.gym.data.local.SecureTokenStore
@@ -52,7 +53,9 @@ class AuthRepository(
                 throw EmailNotVerifiedException(email.trim())
             }
             // Sin backend y con las credenciales de demo: sesión local de demostración.
-            if (!network.isOnline() &&
+            // Nunca disponible en compilaciones de lanzamiento.
+            if (BuildConfig.DEBUG &&
+                !network.isOnline() &&
                 email.trim().equals(DemoCatalog.DEMO_EMAIL, ignoreCase = true) &&
                 password == DemoCatalog.DEMO_PASSWORD
             ) {

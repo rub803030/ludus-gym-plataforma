@@ -7,7 +7,7 @@
     <string name="login_email">Correo electrónico</string>
     <string name="login_password">Contraseña</string>
     <string name="login_action">Entrar al gimnasio</string>
-    <string name="login_demo">Demo: socio@ludusgym.com · Ludus2026!</string>
+    <string name="login_demo">Accede con tu correo y contraseña de socio</string>
     <string name="login_error">No pudimos iniciar sesión. Revisa tus datos e inténtalo de nuevo.</string>
     <string name="nav_home">Inicio</string>
     <string name="nav_qr">QR</string>

@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ludus.gym.BuildConfig
 import com.ludus.gym.data.demo.DemoCatalog
 import com.ludus.gym.data.remote.ApiErrorMessages
 import com.ludus.gym.domain.model.EmailNotVerifiedException
@@ -18,13 +19,13 @@ class LoginViewModel(
     private val login: LoginUseCase,
     private val verifyEmail: VerifyEmailUseCase,
     private val resendVerification: ResendVerificationUseCase,
-    initialEmail: String = DemoCatalog.DEMO_EMAIL,
+    initialEmail: String = if (BuildConfig.DEBUG) DemoCatalog.DEMO_EMAIL else "",
     initialDevLink: String? = null,
 ) : ViewModel() {
 
     var email by mutableStateOf(initialEmail)
         private set
-    var password by mutableStateOf(DemoCatalog.DEMO_PASSWORD)
+    var password by mutableStateOf(if (BuildConfig.DEBUG) DemoCatalog.DEMO_PASSWORD else "")
         private set
     var passwordVisible by mutableStateOf(false)
         private set

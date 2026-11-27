@@ -4,8 +4,13 @@ import Observation
 @Observable
 @MainActor
 final class LoginViewModel {
+    #if DEBUG
     var email = "socio@ludusgym.com"
     var password = "Ludus2026!"
+    #else
+    var email = ""
+    var password = ""
+    #endif
     var passwordVisible = false
     var isLoading = false
     var errorMessage: String?
