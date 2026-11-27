@@ -40,6 +40,57 @@ export async function registerAccessRoutes(app: FastifyInstance): Promise<void> 
     return { ...qr, offlineCredential: issueOfflineCredential(principal.id, gymId) }
   })
 
+  // Sincronización de eventos escaneados sin conexión por la app del socio.
+  // El token está firmado con HMAC, por lo que no se confía en el memberId del
+  // cuerpo: debe coincidir con la sesión y con el gimnasio activo.
+  app.post('/api/access/events', { preHandler: requireAuth }, async (req) => {
+    const principal = getPrincipal(req)
+    if (principal.role !== 'MEMBER') {
+      throw new DomainError('FORBIDDEN', 'Solo socios desde la app', 403)
+    }
+    const body = z.object({
+      memberId: z.string().uuid(),
+      token: z.string().min(20),
+      scannedAt: z.number().int().positive(),
+    }).parse(req.body)
+    const gymId = principal.activeGymId ?? principal.gymId
+    if (!gymId) throw new DomainError('NO_GYM', 'Únete a algún gimnasio para tener acceso', 403)
+    if (body.memberId !== principal.id) {
+      throw new DomainError('FORBIDDEN', 'El evento no pertenece al socio de la sesión', 403)
+    }
+
+    let decoded: VerifiedQr
+    try {
+      decoded = verifyQr(body.token)
+    } catch {
+      throw new DomainError('CONFLICT', 'Credencial offline inválida o expirada', 409)
+    }
+    if (decoded.memberId !== principal.id) {
+      throw new DomainError('FORBIDDEN', 'El evento no pertenece al socio de la sesión', 403)
+    }
+    if (decoded.gymId !== gymId) {
+      throw new DomainError('CROSS_GYM_PASS', 'Este pase pertenece a otro gimnasio', 403)
+    }
+    await assertActiveGymMembership(principal.id, gymId)
+
+    const bucket = BigInt(Math.floor(body.scannedAt / 30_000))
+    try {
+      await prisma.accessEvent.create({
+        data: {
+          gymId,
+          memberId: principal.id,
+          qrBucket: bucket,
+          result: decoded.offline ? 'OFFLINE_GRANTED' : 'GRANTED',
+          offlineSynced: decoded.offline,
+          deviceId: `mobile:${body.scannedAt}`,
+        },
+      })
+    } catch {
+      // Reenvío de la cola offline: el evento ya estaba registrado.
+    }
+    return { ok: true }
+  })
+
   app.get('/api/access/occupancy', { preHandler: [requireAuth, requirePermission('access:checkin')] }, async (req) => {
     const principal = getPrincipal(req)
     const gym = await prisma.gym.findUnique({ where: { id: principal.gymId } })
