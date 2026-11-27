@@ -4,7 +4,7 @@ ESTADO DEL RESCATE - RAMA rescue/release-ready
 
 Fecha: 2026-11-26
 Rama:  rescue/release-ready (creada desde master @ c9a0d2e)
-HEAD:  2a34359
+HEAD:  ver `git rev-parse HEAD` (este registro se actualizo despues de 29984a0)
 Veredicto: NO APTO PARA LANZAMIENTO todavia. Hay cambios listos, pero faltan
            gates externos (migraciones, rotacion de secretos, despliegue y QA).
 
@@ -26,6 +26,10 @@ bc72fba fix(api): devolver respuesta cacheada y liberar lock de idempotencia
 9194aa1 fix(web): aceptar enlaces completos en la verificacion
 2b4c3d9 fix(bd): deduplicar eventos de acceso por gimnasio
 2a34359 fix(api): sincronizar eventos offline de acceso
+29984a0 docs: registrar estado del rescate y gates pendientes
+
+Los commits posteriores a 29984a0 (gate admin, matriz RBAC compartida,
+readiness y QA) se listan con sus hashes reales en `git log master..HEAD`.
 
 --------------------------------------------------------------------------------
 2. VALIDACION EJECUTADA EN LOCAL (TODO VERDE)
@@ -34,7 +38,7 @@ bc72fba fix(api): devolver respuesta cacheada y liberar lock de idempotencia
 pnpm --filter @ludus/api db:generate   OK
 pnpm typecheck                         OK (3 paquetes)
 pnpm lint                              OK (3 paquetes)
-pnpm test                              OK (49 pruebas: 36 API + 13 shared)
+pnpm test                              OK (53 pruebas: 40 API + 13 shared)
 pnpm build                             OK (21 rutas web generadas, API compila)
 
 No ejecutado aqui: tests Android (sin JDK en la maquina), xcodebuild iOS,
