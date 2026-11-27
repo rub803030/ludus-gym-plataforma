@@ -107,7 +107,7 @@ export async function buildApp() {
   app.get('/health', async () => ({ status: 'ok', service: 'ludus-api', at: new Date().toISOString() }))
 
   // Readiness: dependencias reales. Se usa en el gate de QA y en staging;
-  // las sondas tienen timeout corto y no exponen mensajes de error.
+  // 3 s cubren la conexión fría al pooler; no exponen mensajes de error.
   app.get('/health/ready', async (_req, reply) => {
     const redis = getRedisClient()
     const [database, cache] = await Promise.all([

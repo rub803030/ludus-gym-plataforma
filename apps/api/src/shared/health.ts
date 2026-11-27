@@ -11,7 +11,7 @@ export interface HealthProbe {
  */
 export async function probeDependency(
   work: () => Promise<unknown>,
-  timeoutMs = 1500,
+  timeoutMs = 3000,
 ): Promise<HealthProbe> {
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
