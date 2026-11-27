@@ -1,0 +1,146 @@
+================================================================================
+ESTADO DEL RESCATE - RAMA rescue/release-ready
+================================================================================
+
+Fecha: 2026-11-26
+Rama:  rescue/release-ready (creada desde master @ c9a0d2e)
+HEAD:  2a34359
+Veredicto: NO APTO PARA LANZAMIENTO todavia. Hay cambios listos, pero faltan
+           gates externos (migraciones, rotacion de secretos, despliegue y QA).
+
+No se hicieron pushes, migraciones, rotaciones, despliegues ni publicacion de APK.
+
+--------------------------------------------------------------------------------
+1. COMMITS REALIZADOS (autor y trailers correctos en todos)
+--------------------------------------------------------------------------------
+
+26c7989 fix(seguridad): aislar websocket y endurecer secretos
+cf4aa00 fix(movil): evitar credenciales demo en lanzamiento
+819f898 fix(bd): particion por defecto para auditoria
+34e9493 fix(cobros): unificar importes en pesos y conservar idempotencia
+bb7aa9a fix(ci): publicar web con build remoto y apartar iOS
+a921fae fix(bd): preparar backfill de afiliaciones y contador de folios
+120e78c fix(api): imponer afiliacion activa por gimnasio y folios atomicos
+0eb8052 fix(seguridad): consumir tokens de correo una sola vez
+bc72fba fix(api): devolver respuesta cacheada y liberar lock de idempotencia
+9194aa1 fix(web): aceptar enlaces completos en la verificacion
+2b4c3d9 fix(bd): deduplicar eventos de acceso por gimnasio
+2a34359 fix(api): sincronizar eventos offline de acceso
+
+--------------------------------------------------------------------------------
+2. VALIDACION EJECUTADA EN LOCAL (TODO VERDE)
+--------------------------------------------------------------------------------
+
+pnpm --filter @ludus/api db:generate   OK
+pnpm typecheck                         OK (3 paquetes)
+pnpm lint                              OK (3 paquetes)
+pnpm test                              OK (49 pruebas: 36 API + 13 shared)
+pnpm build                             OK (21 rutas web generadas, API compila)
+
+No ejecutado aqui: tests Android (sin JDK en la maquina), xcodebuild iOS,
+pruebas de integracion con PostgreSQL/Redis reales, APK firmada nueva.
+
+--------------------------------------------------------------------------------
+3. QUE QUEDO CORREGIDO
+--------------------------------------------------------------------------------
+
+Seguridad
+- WebSocket exige JWT, solo permite el gym propio (ADMIN exceptuado) y
+  publica el evento de acceso unicamente en la sala del gimnasio correcto.
+- trustProxy limitado a 1 salto para no falsificar X-Forwarded-For.
+- S3 en produccion exige HTTPS y claves configuradas y distintas (falla cerrado).
+- Presigned URLs exigen magicBytes y sha256 reales del archivo.
+- Credenciales demo de Android/iOS quedan tras BuildConfig.DEBUG / #if DEBUG.
+- Tokens de verificacion de socio, staff, gym y aprobacion se consumen con
+  updateMany condicional: un solo uso aun con peticiones concurrentes.
+- verificationResponse usa NODE_ENV validado, no process.env directo.
+
+Multi-tenant
+- GymMembership es fuente de verdad: acceso, check-in manual, cobros, detalle
+  de socio y datos medicos validan afiliacion activa + gimnasio activo.
+- Member.gymId ya no autoriza consultas, cobros ni accesos.
+- Las membresias se alcance por plan.gymId: un socio en dos gyms ya no
+  sobrescribe la membresia del otro.
+- Alta de socio crea su fila en gym_memberships.
+- Aforo se valida igual para QR y para check-in manual.
+- Folios de recibo: contador atomico por gym/anio, sin COUNT + 1.
+- Eventos de acceso offline: nuevo POST /api/access/events con JWT, token HMAC,
+  validacion de gym y dedupe por bucket.
+
+Dinero
+- Contrato de cobro en pesos MXN (eleccion del responsable); API convierte a
+  centavos y exige que el importe coincida con el precio del plan.
+- Importe no editable cuando hay plan seleccionado.
+- Clave de idempotencia se conserva tras un error ambiguo; se guarda la
+  respuesta y se libera el lock si la operacion falla (antes: 24 h bloqueado).
+
+Despliegue
+- Deploy web usa `vercel deploy` sin --prebuilt desde la raiz del monorepo.
+  Motivo: `vercel build` esta roto para monorepos pnpm fuera de Vercel.
+- CLI fijada a vercel@67.0.0; permisos contents: read explicitos.
+- iOS queda en espera (continue-on-error) sin bloquear web/API/Android.
+
+--------------------------------------------------------------------------------
+4. GATES PENDIENTES (BLOQUEANTES PARA LANZAMIENTO)
+--------------------------------------------------------------------------------
+
+G1. MIGRACIONES - BLOQUEANTE
+    Archivos nuevos, AUN NO APLICADOS:
+      infra/supabase/migrations/0010_backfill_gym_memberships.sql
+      infra/supabase/migrations/0011_payment_stability.sql
+      infra/supabase/migrations/0012_security_hardening.sql
+      infra/supabase/migrations/0013_access_events_tenant.sql
+    Aplicarlas en staging y luego produccion ANTES de desplegar este codigo.
+    Sin 0010: los socios creados desde la consola pueden quedar sin afiliacion.
+    Sin 0011: todos los cobros fallan por falta de receipt_counters.
+    Sin 0012: la auditoria dejara de escribir desde 2027-01-01.
+    Sin 0013: colision de eventos de un socio en dos gyms.
+    Verificar despues: conteo de gym_memberships huecas = 0, tabla
+    receipt_counters con filas, particion DEFAULT de audit_logs presente.
+
+G2. SECRETOS - BLOQUEANTE (los rota el responsable, sin imprimir valores)
+    - Rotar S3_ACCESS_KEY / S3_SECRET_KEY (tenian el mismo digest en Fly).
+    - Revisar SMTP_ACCOUNTS (12 cuentas concentradas) y forzar STARTTLS.
+    - Configurar SMTP_DAILY_LIMIT y ADMIN_APPROVAL_EMAILS como secretos.
+    - Redactar docs/FLUJO_OPERATIVO.txt y seeds con credenciales demo.
+    - Confirmar que VERCEL_* y JWT_* estan presentes y rotados segun policy.
+    Verificacion por nombre/digest, nunca por valor.
+
+G3. DESPLIEGUE - BLOQUEANTE
+    - Ejecutar el workflow Deploy web y confirmar 200 en /privacidad,
+      /approve-gym y /admin/gyms (hoy dan 404 por web desactualizada).
+    - Verificar que el commit desplegado es el de esta rama.
+    - API: no existe job automatico de fly deploy; hay que desplegar de forma
+      explícita y comprobar /health con el codigo nuevo.
+
+G4. QA REAL - BLOQUEANTE
+    - Probar en staging con PostgreSQL y Redis reales:
+      socio en dos gyms, QR de otro gym, aforo concurrente, cobro duplicado,
+      reembolso, folios concurrentes, reenvio de correo, tokens reutilizados,
+      login MEMBER-only, offline sync.
+    - Android: ejecutar testDebugUnitTest y lintDebug (requiere JDK + SDK).
+    - Regenerar APK con el mismo keystore, subir versionCode de 4 a 5 y
+      documentar el SHA-256 real. No publicar sin autorizacion.
+
+G5. iOS - EN ESPERA (no bloquea el resto, segun decision del responsable)
+    - LudusGYM.xcodeproj sigue ilegible para Xcode (exit 74).
+    - No se declara soporte iOS hasta repararlo y ejecutar xcodebuild test/archive.
+
+--------------------------------------------------------------------------------
+5. ROLLBACK
+--------------------------------------------------------------------------------
+
+Antes de cualquier despliegue: respaldo de refs y snapshot de la BD.
+Si el deploy falla: revertir el commit del workflow o re-desplegar el commit
+anterior; las migraciones son aditivas, no destructivas (no hay DROP de tablas
+ni columnas). Si se aplico 0013 y se requiere volver, se puede recrear el
+constraint original access_event_dedupe siempre que no haya duplicados por gym.
+
+--------------------------------------------------------------------------------
+6. ESTADO FINAL
+--------------------------------------------------------------------------------
+
+Codigo: listo para staging.
+Produccion: NO APTO todavia.
+Siguiente paso seguro: aplicar G1 en staging y validar; luego G2 a cargo del
+responsable; despues G3 y G4. No fusionar ni publicar hasta que todos pasen.
