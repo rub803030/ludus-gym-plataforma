@@ -118,7 +118,10 @@ export async function registerAccessRoutes(app: FastifyInstance): Promise<void> 
     } catch {
       throw new DomainError('IDEMPOTENCY_REPLAY', 'Este QR ya fue usado', 409)
     }
-    await getCache().publish('access:granted', JSON.stringify({ memberId: member.id, name: `${member.firstName} ${member.lastName}` }))
+    await getCache().publish(
+      'access:granted',
+      JSON.stringify({ gymId: principal.gymId, memberId: member.id, name: `${member.firstName} ${member.lastName}` }),
+    )
     await writeAudit({
       gymId: principal.gymId,
       actorId: principal.id,

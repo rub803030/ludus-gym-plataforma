@@ -17,7 +17,7 @@ export type SmtpAccount = z.infer<typeof smtpAccountSchema>
 
 const smtpAccountsSchema = z.array(smtpAccountSchema).min(1)
 
-const envSchema = z.object({
+export const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   API_PORT: z.coerce.number().int().positive().default(4000),
   DATABASE_URL: z.string().url(),
@@ -69,6 +69,17 @@ const envSchema = z.object({
   }
   if (!value.DIRECT_URL) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['DIRECT_URL'], message: 'DIRECT_URL es obligatorio en producción para migraciones' })
+  }
+  if (value.S3_ACCESS_KEY === 'minioadmin' || value.S3_SECRET_KEY === 'minioadmin' || value.S3_ACCESS_KEY === value.S3_SECRET_KEY) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['S3_ACCESS_KEY'],
+      message: 'En producción S3_ACCESS_KEY y S3_SECRET_KEY deben estar configuradas y ser distintas',
+    })
+  }
+  const s3Endpoint = new URL(value.S3_ENDPOINT)
+  if (s3Endpoint.protocol !== 'https:') {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['S3_ENDPOINT'], message: 'S3_ENDPOINT debe usar HTTPS en producción' })
   }
   let rotatingAccounts: SmtpAccount[] = []
   if (value.SMTP_ACCOUNTS.trim()) {

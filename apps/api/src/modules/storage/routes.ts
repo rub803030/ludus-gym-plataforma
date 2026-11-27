@@ -1,6 +1,7 @@
 import { createHash, createHmac, randomUUID } from 'node:crypto'
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
+import { loadEnv } from '../../config/env.js'
 import { prisma } from '../../shared/database/prisma.js'
 import { DomainError } from '../../shared/errors/domain-error.js'
 import { getPrincipal } from '../../shared/middleware/request-context.js'
@@ -10,8 +11,9 @@ const presignSchema = z.object({
   fileName: z.string().min(1).max(255),
   mimeType: z.enum(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']).optional(),
   contentType: z.enum(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']).optional(),
-  sizeBytes: z.number().int().positive().max(15 * 1024 * 1024).default(1024),
-  magicBytes: z.string().regex(/^[0-9a-fA-F]+$/).min(4).max(32).optional(),
+  sizeBytes: z.number().int().positive().max(15 * 1024 * 1024),
+  magicBytes: z.string().regex(/^[0-9a-fA-F]+$/).min(4).max(32),
+  sha256: z.string().regex(/^[0-9a-fA-F]{64}$/),
   purpose: z.enum(['avatar', 'receipt', 'medical']).default('avatar'),
 })
 
@@ -69,20 +71,20 @@ export async function registerStorageRoutes(app: FastifyInstance): Promise<void>
       throw new DomainError('VALIDATION_ERROR', 'Se requiere mimeType o contentType', 400)
     }
     const allowed = MAGIC[mimeType] ?? []
-    if (body.magicBytes) {
-      const provided = body.magicBytes.toLowerCase()
-      if (!allowed.some((prefix) => provided.startsWith(prefix))) {
-        throw new DomainError('VALIDATION_ERROR', 'El contenido del archivo no coincide con el tipo declarado', 415)
-      }
+    const provided = body.magicBytes.toLowerCase()
+    if (!allowed.some((prefix) => provided.startsWith(prefix))) {
+      throw new DomainError('VALIDATION_ERROR', 'El contenido del archivo no coincide con el tipo declarado', 415)
     }
     const principal = getPrincipal(req)
     const extension = body.fileName.split('.').pop()?.toLowerCase() ?? 'bin'
     const objectKey = `${principal.gymId}/${body.purpose}/${randomUUID()}.${extension}`
-    const endpoint = process.env.S3_ENDPOINT ?? 'http://localhost:9000'
-    const bucket = process.env.S3_BUCKET ?? 'ludus-gym'
-    const region = process.env.S3_REGION ?? 'us-east-1'
-    const accessKey = process.env.S3_ACCESS_KEY ?? 'minioadmin'
-    const secretKey = process.env.S3_SECRET_KEY ?? 'minioadmin'
+    const env = loadEnv()
+    const endpoint = env.S3_ENDPOINT
+    const bucket = env.S3_BUCKET
+    const region = env.S3_REGION
+    const accessKey = env.S3_ACCESS_KEY
+    const secretKey = env.S3_SECRET_KEY
+    const uploadUrl = presignPut(endpoint, bucket, region, accessKey, secretKey, objectKey, mimeType)
 
     await prisma.upload.create({
       data: {
@@ -91,14 +93,14 @@ export async function registerStorageRoutes(app: FastifyInstance): Promise<void>
         objectKey,
         mimeType,
         sizeBytes: body.sizeBytes,
-        sha256: createHash('sha256').update(body.magicBytes ?? objectKey).digest('hex'),
+        sha256: body.sha256.toLowerCase(),
         purpose: body.purpose,
       },
     })
     reply.code(201)
     return {
-      uploadUrl: presignPut(endpoint, bucket, region, accessKey, secretKey, objectKey, mimeType),
-      url: presignPut(endpoint, bucket, region, accessKey, secretKey, objectKey, mimeType),
+      uploadUrl,
+      url: uploadUrl,
       objectKey,
       key: objectKey,
       publicUrl: `${endpoint}/${bucket}/${objectKey}`,

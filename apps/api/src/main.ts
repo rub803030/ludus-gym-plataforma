@@ -8,6 +8,7 @@ import { ZodError } from 'zod'
 import { Server as SocketServer } from 'socket.io'
 import { loadEnv } from './config/env.js'
 import { DomainError } from './shared/errors/domain-error.js'
+import { type TokenClaims, verifyAccessToken } from './shared/jwt.js'
 import { getCache, getRedisClient } from './shared/redis.js'
 import { csrfGuard, getCsrfSecret } from './shared/middleware/csrf.js'
 import { registerAuthRoutes } from './modules/auth/routes.js'
@@ -22,33 +23,11 @@ import { registerGymRoutes } from './modules/gyms/routes.js'
 import { registerAdminRoutes } from './modules/admin/routes.js'
 
 export async function buildApp() {
-  let env
-  try {
-    env = loadEnv()
-  } catch (error) {
-    if (process.env.NODE_ENV === 'production') throw error
-    env = {
-      NODE_ENV: (process.env.NODE_ENV ?? 'development') as 'development',
-      API_PORT: Number(process.env.API_PORT ?? 4000),
-      DATABASE_URL: process.env.DATABASE_URL ?? '',
-      REDIS_URL: process.env.REDIS_URL ?? '',
-      JWT_ACCESS_SECRET: process.env.JWT_ACCESS_SECRET ?? '',
-      JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET ?? '',
-      QR_HMAC_SECRET: process.env.QR_HMAC_SECRET ?? '',
-      FIELD_ENCRYPTION_KEY: process.env.FIELD_ENCRYPTION_KEY ?? '',
-      CSRF_SECRET: process.env.CSRF_SECRET ?? '',
-      CORS_ORIGIN: process.env.CORS_ORIGIN ?? 'http://localhost:3000',
-      RATE_LIMIT_MAX: Number(process.env.RATE_LIMIT_MAX ?? 120),
-      RESEND_API_KEY: process.env.RESEND_API_KEY ?? '',
-      EMAIL_FROM: process.env.EMAIL_FROM ?? 'Ludus GYM <onboarding@resend.dev>',
-      RESEND_TEST_RECIPIENT: process.env.RESEND_TEST_RECIPIENT || undefined,
-      WEB_APP_URL: process.env.WEB_APP_URL ?? 'http://localhost:3000',
-      EMAIL_VERIFICATION_TTL_MINUTES: Number(process.env.EMAIL_VERIFICATION_TTL_MINUTES ?? 30),
-      ADMIN_APPROVAL_EMAILS: process.env.ADMIN_APPROVAL_EMAILS ?? '',
-    }
-  }
+  const env = loadEnv()
 
-  const app = Fastify({ logger: { level: env.NODE_ENV === 'production' ? 'warn' : 'info' }, trustProxy: true })
+  // Solo se confía en el proxy inmediato; `true` permitiría falsificar
+  // X-Forwarded-For desde cualquier cliente para evadir el rate limit.
+  const app = Fastify({ logger: { level: env.NODE_ENV === 'production' ? 'warn' : 'info' }, trustProxy: 1 })
 
   await app.register(helmet, { contentSecurityPolicy: false })
   await app.register(cookie, { secret: getCsrfSecret() })
@@ -106,14 +85,33 @@ export async function buildApp() {
     cors: { origin: env.CORS_ORIGIN, credentials: true },
   })
   io.on('connection', (socket) => {
-    socket.on('subscribe:gym', (gymId: string) => socket.join(`gym:${gymId}`))
+    const authToken = socket.handshake.auth?.token ?? socket.handshake.query?.token
+    if (typeof authToken !== 'string' || !authToken) {
+      socket.disconnect(true)
+      return
+    }
+
+    let claims: TokenClaims
+    try {
+      claims = verifyAccessToken(authToken)
+    } catch {
+      socket.disconnect(true)
+      return
+    }
+
+    const ownGymId = claims.activeGymId ?? claims.gymId
+    socket.on('subscribe:gym', (requestedGymId: string) => {
+      if (typeof requestedGymId !== 'string' || !requestedGymId) return
+      if (claims.role !== 'ADMIN' && requestedGymId !== ownGymId) return
+      socket.join(`gym:${requestedGymId}`)
+    })
   })
   const cache = getCache()
   void cache.subscribe('access:granted', (message) => {
     try {
-      const payload = JSON.parse(message) as { memberId?: string }
-      io.to('gym:00000000-0000-7000-8000-000000000001').emit('access:granted', payload)
-      io.emit('access:granted', payload)
+      const payload = JSON.parse(message) as { gymId?: string; memberId?: string }
+      if (!payload.gymId) return
+      io.to(`gym:${payload.gymId}`).emit('access:granted', payload)
     } catch {
       // Mensaje ignorado
     }
