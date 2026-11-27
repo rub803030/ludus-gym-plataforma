@@ -11,6 +11,7 @@ import { DomainError } from './shared/errors/domain-error.js'
 import { type TokenClaims, verifyAccessToken } from './shared/jwt.js'
 import { getCache, getRedisClient } from './shared/redis.js'
 import { csrfGuard, getCsrfSecret } from './shared/middleware/csrf.js'
+import { IDEMPOTENCY_TTL_SECONDS, idempotencyKeys } from './shared/middleware/idempotency.js'
 import { registerAuthRoutes } from './modules/auth/routes.js'
 import { registerMemberRoutes } from './modules/members/routes.js'
 import { registerBillingRoutes } from './modules/billing/routes.js'
@@ -46,6 +47,37 @@ export async function buildApp() {
     ...(rateLimitRedis ? { redis: rateLimitRedis } : {}),
     // Nunca derribamos la API si Redis cae; el store local sigue protegiendo.
     skipOnError: true,
+  })
+
+  // La respuesta de una operación idempotente se guarda para devolver el mismo
+  // resultado en reintentos. Si falla, se libera el lock para permitir el retry.
+  app.addHook('onSend', async (req, reply, payload) => {
+    const key = req.idempotencyKey
+    if (!key || reply.statusCode >= 400 || typeof payload !== 'string') return payload
+    let body: unknown = payload
+    try {
+      body = JSON.parse(payload)
+    } catch {
+      // Se conserva el texto original si no era JSON.
+    }
+    const principalId = req.principal?.id ?? 'anon'
+    const { response } = idempotencyKeys(principalId, key)
+    await getCache().set(
+      response,
+      JSON.stringify({ status: reply.statusCode, body }),
+      'EX',
+      IDEMPOTENCY_TTL_SECONDS,
+    )
+    return payload
+  })
+
+  app.addHook('onError', async (req) => {
+    const key = req.idempotencyKey
+    if (!key) return
+    const principalId = req.principal?.id ?? 'anon'
+    const { lock, response } = idempotencyKeys(principalId, key)
+    await getCache().del(lock)
+    await getCache().del(response)
   })
 
   app.setErrorHandler((error, _req, reply) => {
