@@ -77,16 +77,20 @@ S-09    /health/ready degrada sin BD/Redis        Ejecutado (4 tests); falta en 
 4. MIGRACIONES (archivos listos, NO aplicados)
 --------------------------------------------------------------------------------
 
-0010_backfill_gym_memberships.sql     Pendiente aplicar en staging
-0011_payment_stability.sql            Pendiente aplicar en staging
-0012_security_hardening.sql           Pendiente aplicar en staging
-0013_access_events_tenant.sql         Pendiente aplicar en staging
+0010_backfill_gym_memberships.sql     Aplicada en staging - OK
+0011_payment_stability.sql            Aplicada en staging - OK (GROUP BY corregido)
+0012_security_hardening.sql           Aplicada en staging - OK
+0013_access_events_tenant.sql         Aplicada en staging - OK
 
-Verificacion posterior obligatoria:
-  - gym_memberships sin fila para members activos = 0
-  - receipt_counters con filas tras el backfill
-  - particion DEFAULT de audit_logs presente
-  - ux_access_event_dedupe_tenant presente
+Evidencia de verificacion en staging (2026-11-27, proyecto nwewdakwdrmiffrbvwuj):
+  - Backup logico previo: 28 tablas / 283 filas en %TEMP%
+  - socios sin afiliacion = 0
+  - receipt_counters = 1 fila, ultimo folio 8 (8 recibos validos)
+  - politica RLS tenant_isolation presente en receipt_counters
+  - audit_logs_default con bound DEFAULT presente
+  - constraint access_event_dedupe = 0, indice ux_access_event_dedupe_tenant = 1
+
+PENDIENTE: aplicarlas en produccion con snapshot previo antes del deploy.
 
 Prohibido: scripts/apply-all-migrations.py en BD real (reaplica seeds y
 sobrescribe verificaciones). No ejecutar en produccion sin snapshot previo.

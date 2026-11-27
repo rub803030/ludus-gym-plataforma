@@ -88,19 +88,24 @@ Despliegue
 4. GATES PENDIENTES (BLOQUEANTES PARA LANZAMIENTO)
 --------------------------------------------------------------------------------
 
-G1. MIGRACIONES - BLOQUEANTE
-    Archivos nuevos, AUN NO APLICADOS:
-      infra/supabase/migrations/0010_backfill_gym_memberships.sql
-      infra/supabase/migrations/0011_payment_stability.sql
-      infra/supabase/migrations/0012_security_hardening.sql
-      infra/supabase/migrations/0013_access_events_tenant.sql
-    Aplicarlas en staging y luego produccion ANTES de desplegar este codigo.
-    Sin 0010: los socios creados desde la consola pueden quedar sin afiliacion.
-    Sin 0011: todos los cobros fallan por falta de receipt_counters.
-    Sin 0012: la auditoria dejara de escribir desde 2027-01-01.
-    Sin 0013: colision de eventos de un socio en dos gyms.
-    Verificar despues: conteo de gym_memberships huecas = 0, tabla
-    receipt_counters con filas, particion DEFAULT de audit_logs presente.
+G1. MIGRACIONES - APLICADAS EN STAGING (2026-11-27)
+    Proyecto local: ref nwewdakwdrmiffrbvwuj; NO es la BD de Fly (el digest de
+    DATABASE_URL local 4e832a783b17... no coincide con el de Fly
+    5e88878fdcaa6b7b). Datos semilla: 1 gym, 5 socios, 5 staff.
+    Backup logico previo: 28 tablas / 283 filas en %TEMP% (no impreso).
+    Aplicadas en orden, una por una, dentro de transaccion:
+      0010_backfill_gym_memberships.sql  OK (0 filas nuevas, no habia huecos)
+      0011_payment_stability.sql         OK tras corregir el GROUP BY (ver 487af4e)
+      0012_security_hardening.sql        OK
+      0013_access_events_tenant.sql      OK
+    Verificacion posterior real:
+      socios sin afiliacion = 0
+      receipt_counters = 1 fila, ultimo folio 8 (8 recibos validos)
+      politica RLS tenant_isolation en receipt_counters = 1
+      audit_logs_default con bound DEFAULT = 1
+      access_event_dedupe = 0, ux_access_event_dedupe_tenant = 1
+    PENDIENTE: aplicar el mismo paquete en PRODUCCION con snapshot previo,
+    antes de desplegar este codigo. No hacerlo sin autorizacion explicita.
 
 G2. SECRETOS - BLOQUEANTE (los rota el responsable, sin imprimir valores)
     - Rotar S3_ACCESS_KEY / S3_SECRET_KEY (tenian el mismo digest en Fly).
