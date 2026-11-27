@@ -63,10 +63,19 @@ export async function verifyGymToken(token: string) {
     throw new DomainError('VERIFICATION_TOKEN_EXPIRED', 'El enlace venció. Solicita uno nuevo', 410)
   }
 
-  const confirmed = await prisma.gym.update({
-    where: { id: gym.id },
+  const now = new Date()
+  const consumed = await prisma.gym.updateMany({
+    where: {
+      id: gym.id,
+      verificationTokenHash: hashToken(token),
+      verificationExpiresAt: { gt: now },
+    },
     data: { verificationTokenHash: null, verificationExpiresAt: null },
   })
+  if (consumed.count !== 1) {
+    throw new DomainError('VERIFICATION_TOKEN_INVALID', 'El enlace no es válido o ya fue usado', 400)
+  }
+  const confirmed = await prisma.gym.findUniqueOrThrow({ where: { id: gym.id } })
   await prisma.staffUser.updateMany({
     where: { gymId: gym.id, role: 'OWNER' },
     data: { emailVerified: true, emailVerifiedAt: new Date() },
@@ -172,19 +181,30 @@ export async function approveGym(token: string) {
 
   const publicCode = gym.publicCode ?? (await nextPublicCode())
   const enrollmentQrToken = issueEnrollmentQr(gym.id, publicCode)
-  const activated = await prisma.gym.update({
-    where: { id: gym.id },
+  const now = new Date()
+  // Un solo uso, incluso si dos ADMIN abren el enlace al mismo tiempo.
+  const consumed = await prisma.gym.updateMany({
+    where: {
+      id: gym.id,
+      approvalTokenHash: hashToken(token),
+      approvalExpiresAt: { gt: now },
+      status: { not: 'ACTIVE' },
+    },
     data: {
       status: 'ACTIVE',
       publicCode,
       enrollmentQrToken,
-      approvedAt: new Date(),
+      approvedAt: now,
       approvalTokenHash: null,
       approvalExpiresAt: null,
       verificationTokenHash: null,
       verificationExpiresAt: null,
     },
   })
+  if (consumed.count !== 1) {
+    throw new DomainError('VERIFICATION_TOKEN_INVALID', 'El enlace no es válido o ya fue usado', 400)
+  }
+  const activated = await prisma.gym.findUniqueOrThrow({ where: { id: gym.id } })
   await prisma.staffUser.updateMany({
     where: { gymId: gym.id, role: 'OWNER' },
     data: { emailVerified: true, emailVerifiedAt: new Date() },

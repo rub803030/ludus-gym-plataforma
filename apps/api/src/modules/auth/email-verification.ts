@@ -23,7 +23,7 @@ export function verificationResponse(issued: VerificationIssue): {
   devToken?: string
   devLink?: string
 } {
-  if (process.env.NODE_ENV === 'production') {
+  if (loadEnv().NODE_ENV === 'production') {
     return { email: issued.email, expiresAt: issued.expiresAt }
   }
   return {
@@ -111,8 +111,13 @@ export async function verifyEmailToken(token: string): Promise<{
     if (!staff.verificationExpiresAt || staff.verificationExpiresAt < now) {
       throw new DomainError('VERIFICATION_TOKEN_EXPIRED', 'El enlace venció. Solicita uno nuevo', 410)
     }
-    await prisma.staffUser.update({
-      where: { id: staff.id },
+    // Consumo atómico: dos peticiones concurrentes no pueden verificar dos veces.
+    const consumed = await prisma.staffUser.updateMany({
+      where: {
+        id: staff.id,
+        verificationTokenHash: tokenHash,
+        verificationExpiresAt: { gt: now },
+      },
       data: {
         emailVerified: true,
         emailVerifiedAt: now,
@@ -120,6 +125,9 @@ export async function verifyEmailToken(token: string): Promise<{
         verificationExpiresAt: null,
       },
     })
+    if (consumed.count !== 1) {
+      throw new DomainError('VERIFICATION_TOKEN_INVALID', 'El enlace no es válido o ya fue usado', 400)
+    }
     await writeAudit({
       gymId: staff.gymId,
       actorId: staff.id,
@@ -139,8 +147,12 @@ export async function verifyEmailToken(token: string): Promise<{
     if (!member.verificationExpiresAt || member.verificationExpiresAt < now) {
       throw new DomainError('VERIFICATION_TOKEN_EXPIRED', 'El enlace venció. Solicita uno nuevo', 410)
     }
-    await prisma.member.update({
-      where: { id: member.id },
+    const consumed = await prisma.member.updateMany({
+      where: {
+        id: member.id,
+        verificationTokenHash: tokenHash,
+        verificationExpiresAt: { gt: now },
+      },
       data: {
         emailVerified: true,
         emailVerifiedAt: now,
@@ -148,6 +160,9 @@ export async function verifyEmailToken(token: string): Promise<{
         verificationExpiresAt: null,
       },
     })
+    if (consumed.count !== 1) {
+      throw new DomainError('VERIFICATION_TOKEN_INVALID', 'El enlace no es válido o ya fue usado', 400)
+    }
     await writeAudit({
       gymId: member.gymId,
       actorId: member.id,
